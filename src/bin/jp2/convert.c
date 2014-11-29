@@ -641,7 +641,7 @@ typedef struct {
     DWORD biClrImportant;		/* Number of important color (0: ALL) */
 } BITMAPINFOHEADER_t;
 
-opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters) 
+opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters, opj_image_t* oldImage) 
 {
     int subsampling_dx = parameters->subsampling_dx;
     int subsampling_dy = parameters->subsampling_dy;
@@ -777,9 +777,14 @@ opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters)
             cmptparm[i].dy = (OPJ_UINT32)subsampling_dy;
             cmptparm[i].w = (OPJ_UINT32)w;
             cmptparm[i].h = (OPJ_UINT32)h;
+			cmptparm[i].allocate_memory = parameters->allocate_memory;
         }
+
         /* create the image */
-        image = opj_image_create((OPJ_UINT32)numcomps, &cmptparm[0], color_space);
+		if (!opj_image_header_equals(oldImage, numcomps, cmptparm+0, color_space) )
+			image = opj_image_create((OPJ_UINT32)numcomps, &cmptparm[0], color_space);
+		else 
+			image = oldImage;
         if(!image)
         {
             fclose(IN);
@@ -793,44 +798,47 @@ opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters)
         image->y1 =	!image->y0 ? (OPJ_UINT32)(h - 1) * (OPJ_UINT32)subsampling_dy + 1 : image->y0 + (OPJ_UINT32)(h - 1) * (OPJ_UINT32)subsampling_dy + 1;
 
         /* set image data */
+		if (image->comps[0].data) {
 
-        /* Place the cursor at the beginning of the image information */
-        fseek(IN, 0, SEEK_SET);
-        fseek(IN, (long)File_h.bfOffBits, SEEK_SET);
+			/* Place the cursor at the beginning of the image information */
+			fseek(IN, 0, SEEK_SET);
+			fseek(IN, (long)File_h.bfOffBits, SEEK_SET);
 
-        W = Info_h.biWidth;
-        H = Info_h.biHeight;
+			W = Info_h.biWidth;
+			H = Info_h.biHeight;
 
-        /* PAD = 4 - (3 * W) % 4; */
-        /* PAD = (PAD == 4) ? 0 : PAD; */
-        PAD = (3 * W) % 4 ? 4 - (3 * W) % 4 : 0;
+			/* PAD = 4 - (3 * W) % 4; */
+			/* PAD = (PAD == 4) ? 0 : PAD; */
+			PAD = (3 * W) % 4 ? 4 - (3 * W) % 4 : 0;
 
-        RGB = (unsigned char *)
-                malloc((3 * W + PAD) * H * sizeof(unsigned char));
+			RGB = (unsigned char *)
+					malloc((3 * W + PAD) * H * sizeof(unsigned char));
 
-        if ( fread(RGB, sizeof(unsigned char), (3 * W + PAD) * H, IN) != (3 * W + PAD) * H )
-        {
-            free(RGB);
-            opj_image_destroy(image);
-            fprintf(stderr, "\nError: fread return a number of element different from the expected.\n");
-            return NULL;
-        }
+			if ( fread(RGB, sizeof(unsigned char), (3 * W + PAD) * H, IN) != (3 * W + PAD) * H )
+			{
+				free(RGB);
+				opj_image_destroy(image);
+				fprintf(stderr, "\nError: fread return a number of element different from the expected.\n");
+				return NULL;
+			}
 
-        index = 0;
+			index = 0;
 
-        for(y = 0; y < H; y++)
-        {
-            unsigned char *scanline = RGB + (3 * (unsigned int)W + PAD) * ((unsigned int)H - 1 - (unsigned int)y);
-            for(x = 0; x < W; x++)
-            {
-                unsigned char *pixel = &scanline[3 * x];
-                image->comps[0].data[index] = pixel[2];	/* R */
-                image->comps[1].data[index] = pixel[1];	/* G */
-                image->comps[2].data[index] = pixel[0];	/* B */
-                index++;
-            }
-        }
-        free(RGB);
+			for(y = 0; y < H; y++)
+			{
+				unsigned char *scanline = RGB + (3 * (unsigned int)W + PAD) * ((unsigned int)H - 1 - (unsigned int)y);
+				for(x = 0; x < W; x++)
+				{
+					unsigned char *pixel = &scanline[3 * x];
+					image->comps[0].data[index] = pixel[2];	/* R */
+					image->comps[1].data[index] = pixel[1];	/* G */
+					image->comps[2].data[index] = pixel[0];	/* B */
+					index++;
+				}
+			}
+			free(RGB);
+
+		}
     }/* if (Info_h.biBitCount == 24) */
     else
         if (Info_h.biBitCount == 8 && Info_h.biCompression == 0)/*RGB */
@@ -878,8 +886,11 @@ opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters)
                 cmptparm[i].w = (OPJ_UINT32)w;
                 cmptparm[i].h = (OPJ_UINT32)h;
             }
-            /* create the image */
-            image = opj_image_create((OPJ_UINT32)numcomps, &cmptparm[0], color_space);
+			/* create the image */
+			if (!opj_image_header_equals(oldImage, numcomps, cmptparm+0, color_space) )
+				image = opj_image_create((OPJ_UINT32)numcomps, &cmptparm[0], color_space);
+			else 
+				image = oldImage;
             if(!image)
             {
                 fclose(IN);

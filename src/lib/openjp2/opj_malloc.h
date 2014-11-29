@@ -172,6 +172,8 @@ void OPJ_CALLCONV opj_free(void * m);
 #define opj_free(m) free(m)
 #endif
 
+#define opj_safe_free(m) if (m) free(m)
+
 #ifdef __GNUC__
 #pragma GCC poison malloc calloc realloc free
 #endif

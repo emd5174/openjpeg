@@ -470,6 +470,7 @@ OPJ_BOOL opj_tcd_rateallocate(  opj_tcd_t *tcd,
                 opj_tile_info_t *tile_info = &cstr_info->tile[tcd->tcd_tileno];
                 tile_info->numpix = tcd_tile->numpix;
                 tile_info->distotile = tcd_tile->distotile;
+				opj_safe_free(tile_info->thresh);
                 tile_info->thresh = (OPJ_FLOAT64 *) opj_malloc(tcd_tcp->numlayers * sizeof(OPJ_FLOAT64));
                 if (!tile_info->thresh) {
                         /* FIXME event manager error callback */
@@ -586,15 +587,18 @@ OPJ_BOOL opj_tcd_init( opj_tcd_t *p_tcd,
         p_tcd->image = p_image;
         p_tcd->cp = p_cp;
 
-        p_tcd->tcd_image->tiles = (opj_tcd_tile_t *) opj_calloc(1,sizeof(opj_tcd_tile_t));
-        if (! p_tcd->tcd_image->tiles) {
-                return OPJ_FALSE;
-        }
+		if (! p_tcd->tcd_image->tiles) {
+			p_tcd->tcd_image->tiles = (opj_tcd_tile_t *) opj_calloc(1,sizeof(opj_tcd_tile_t));
+			if (! p_tcd->tcd_image->tiles) {
+					return OPJ_FALSE;
+			}
 
-        p_tcd->tcd_image->tiles->comps = (opj_tcd_tilecomp_t *) opj_calloc(p_image->numcomps,sizeof(opj_tcd_tilecomp_t));
-        if (! p_tcd->tcd_image->tiles->comps ) {
-                return OPJ_FALSE;
-        }
+			p_tcd->tcd_image->tiles->comps = (opj_tcd_tilecomp_t *) opj_calloc(p_image->numcomps,sizeof(opj_tcd_tilecomp_t));
+			if (! p_tcd->tcd_image->tiles->comps ) {
+					return OPJ_FALSE;
+			}
+
+		}
 
         p_tcd->tcd_image->tiles->numcomps = p_image->numcomps;
         p_tcd->tp_pos = p_cp->m_specific_param.m_enc.m_tp_pos;
@@ -1153,9 +1157,10 @@ OPJ_BOOL opj_tcd_encode_tile(   opj_tcd_t *p_tcd,
 {
 
         if (p_tcd->cur_tp_num == 0) {
-
+				opj_tcd_tile_t * l_tile = p_tcd->tcd_image->tiles;
                 p_tcd->tcd_tileno = p_tile_no;
                 p_tcd->tcp = &p_tcd->cp->tcps[p_tile_no];
+			
 
                 /* INDEX >> "Precinct_nb_X et Precinct_nb_Y" */
                 if(p_cstr_info)  {
@@ -1190,9 +1195,12 @@ OPJ_BOOL opj_tcd_encode_tile(   opj_tcd_t *p_tcd,
                 /* FIXME _ProfStop(PGROUP_DC_SHIFT); */
 
                 /* FIXME _ProfStart(PGROUP_MCT); */
-                if (! opj_tcd_mct_encode(p_tcd)) {
-                        return OPJ_FALSE;
-                }
+				if (l_tile->numcomps == 3 && l_tile->comps && l_tile->comps[0].data &&  l_tile->comps[0].data &&  l_tile->comps[0].data) {
+					if (! opj_tcd_mct_encode(p_tcd)) {
+							return OPJ_FALSE;
+					}
+				}
+
                 /* FIXME _ProfStop(PGROUP_MCT); */
 
                 /* FIXME _ProfStart(PGROUP_DWT); */
@@ -1881,20 +1889,22 @@ OPJ_BOOL opj_tcd_dc_level_shift_encode ( opj_tcd_t *p_tcd )
 
         for (compno = 0; compno < l_tile->numcomps; compno++) {
                 l_current_ptr = l_tile_comp->data;
-                l_nb_elem = (OPJ_UINT32)((l_tile_comp->x1 - l_tile_comp->x0) * (l_tile_comp->y1 - l_tile_comp->y0));
+				if (l_current_ptr) {
+					l_nb_elem = (OPJ_UINT32)((l_tile_comp->x1 - l_tile_comp->x0) * (l_tile_comp->y1 - l_tile_comp->y0));
 
-                if (l_tccp->qmfbid == 1) {
-                        for     (i = 0; i < l_nb_elem; ++i) {
-                                *l_current_ptr -= l_tccp->m_dc_level_shift ;
-                                ++l_current_ptr;
-                        }
-                }
-                else {
-                        for (i = 0; i < l_nb_elem; ++i) {
-                                *l_current_ptr = (*l_current_ptr - l_tccp->m_dc_level_shift) << 11 ;
-                                ++l_current_ptr;
-                        }
-                }
+					if (l_tccp->qmfbid == 1) {
+							for     (i = 0; i < l_nb_elem; ++i) {
+									*l_current_ptr -= l_tccp->m_dc_level_shift ;
+									++l_current_ptr;
+							}
+					}
+					else {
+							for (i = 0; i < l_nb_elem; ++i) {
+									*l_current_ptr = (*l_current_ptr - l_tccp->m_dc_level_shift) << 11 ;
+									++l_current_ptr;
+							}
+					}
+				}
 
                 ++l_img_comp;
                 ++l_tccp;
@@ -1913,7 +1923,7 @@ OPJ_BOOL opj_tcd_mct_encode ( opj_tcd_t *p_tcd )
         OPJ_BYTE ** l_data = 00;
         opj_tcp_t * l_tcp = p_tcd->tcp;
 
-        if(!p_tcd->tcp->mct) {
+		if(!p_tcd->tcp->mct) {
                 return OPJ_TRUE;
         }
 
@@ -1967,6 +1977,8 @@ OPJ_BOOL opj_tcd_dwt_encode ( opj_tcd_t *p_tcd )
         OPJ_UINT32 compno;
 
         for (compno = 0; compno < l_tile->numcomps; ++compno) {
+			    if (!l_tile_comp->data)
+					continue;
                 if (l_tccp->qmfbid == 1) {
                         if (! opj_dwt_encode(l_tile_comp)) {
                                 return OPJ_FALSE;

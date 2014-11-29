@@ -657,6 +657,7 @@ void OPJ_CALLCONV opj_set_default_encoder_parameters(opj_cparameters_t *paramete
 		parameters->cp_fixed_alloc = 0;
 		parameters->cp_fixed_quality = 0;
 		parameters->jpip_on = OPJ_FALSE;
+		parameters->allocate_memory = OPJ_TRUE;
 /* UniPG>> */
 #ifdef USE_JPWL
 		parameters->jpwl_epc_on = OPJ_FALSE;
@@ -801,6 +802,7 @@ OPJ_BOOL OPJ_CALLCONV opj_set_MCT(opj_cparameters_t *parameters,
 
 	/* use array based MCT */
 	parameters->tcp_mct = 2;
+	opj_safe_free(parameters->mct_data);
 	parameters->mct_data = opj_malloc(l_mct_total_size);
 	if (! parameters->mct_data) {
 		return OPJ_FALSE;

@@ -1719,6 +1719,7 @@ OPJ_BOOL opj_jp2_setup_encoder(	opj_jp2_t *jp2,
 	jp2->brand = JP2_JP2;	/* BR */
 	jp2->minversion = 0;	/* MinV */
 	jp2->numcl = 1;
+	opj_safe_free(jp2->cl);
 	jp2->cl = (OPJ_UINT32*) opj_malloc(jp2->numcl * sizeof(OPJ_UINT32));
 	if (!jp2->cl){
 		jp2->cl = NULL;
@@ -1730,6 +1731,7 @@ OPJ_BOOL opj_jp2_setup_encoder(	opj_jp2_t *jp2,
 	/* Image Header box */
 
 	jp2->numcomps = image->numcomps;	/* NC */
+	opj_safe_free(jp2->comps);
 	jp2->comps = (opj_jp2_comps_t*) opj_malloc(jp2->numcomps * sizeof(opj_jp2_comps_t));
 	if (!jp2->comps) {
 		jp2->comps = NULL;

@@ -36,6 +36,63 @@ opj_image_t* opj_image_create0(void) {
 	return image;
 }
 
+OPJ_BOOL opj_image_equal(opj_image_t* lhs, opj_image_t* rhs) {
+	OPJ_UINT32 i;
+	if (lhs == NULL || rhs == NULL)
+		return OPJ_FALSE;
+	if (lhs->comps == NULL || rhs->comps == NULL)
+		return OPJ_FALSE;
+	if (lhs->numcomps != rhs->numcomps)
+		return OPJ_FALSE;
+	if (lhs->color_space != rhs->color_space)
+		return OPJ_FALSE;
+	if (lhs->x0 != rhs->x0 || lhs->x1 != rhs->x1 || lhs->y0 != rhs->y0 || lhs->y1 != rhs->y1)
+		return OPJ_FALSE;
+	for (i = 0; i < lhs->numcomps; ++i) {
+		if (lhs->comps[i].bpp != rhs->comps[i].bpp)
+			return OPJ_FALSE;
+		if (lhs->comps[i].prec != rhs->comps[i].prec)
+			return OPJ_FALSE;
+		if (lhs->comps[i].sgnd != rhs->comps[i].sgnd)
+			return OPJ_FALSE;
+		if (lhs->comps[i].w != rhs->comps[i].w)
+			return OPJ_FALSE;
+		if (lhs->comps[i].h != rhs->comps[i].h)
+			return OPJ_FALSE;
+		if (lhs->comps[i].dx != rhs->comps[i].dx)
+			return OPJ_FALSE;
+		if (lhs->comps[i].dy != rhs->comps[i].dy)
+			return OPJ_FALSE;
+	}
+	return OPJ_TRUE;
+}
+
+OPJ_BOOL OPJ_CALLCONV opj_image_header_equals(opj_image_t* img,  OPJ_SIZE_T num_components,
+											opj_image_cmptparm_t* component_parameters, OPJ_COLOR_SPACE color_space){
+
+	OPJ_UINT32 i;
+   if (!img || (img->numcomps !=num_components) || img->color_space != color_space )
+	   return OPJ_FALSE;
+	for (i = 0; i < img->numcomps; ++i) {
+		if (img->comps[i].bpp != component_parameters->bpp)
+			return OPJ_FALSE;
+		if (img->comps[i].prec != component_parameters->prec)
+			return OPJ_FALSE;
+		if (img->comps[i].sgnd != component_parameters->sgnd)
+			return OPJ_FALSE;
+		if (img->comps[i].w != component_parameters->w)
+			return OPJ_FALSE;
+		if (img->comps[i].h != component_parameters->h)
+			return OPJ_FALSE;
+		if (img->comps[i].dx != component_parameters->dx)
+			return OPJ_FALSE;
+		if (img->comps[i].dy != component_parameters->dy)
+			return OPJ_FALSE;
+	}
+	return OPJ_TRUE;
+}
+
+
 opj_image_t* OPJ_CALLCONV opj_image_create(OPJ_UINT32 numcmpts, opj_image_cmptparm_t *cmptparms, OPJ_COLOR_SPACE clrspc) {
 	OPJ_UINT32 compno;
 	opj_image_t *image = NULL;
@@ -63,12 +120,15 @@ opj_image_t* OPJ_CALLCONV opj_image_create(OPJ_UINT32 numcmpts, opj_image_cmptpa
 			comp->prec = cmptparms[compno].prec;
 			comp->bpp = cmptparms[compno].bpp;
 			comp->sgnd = cmptparms[compno].sgnd;
-			comp->data = (OPJ_INT32*) opj_calloc(comp->w * comp->h, sizeof(OPJ_INT32));
-			if(!comp->data) {
-				fprintf(stderr,"Unable to allocate memory for image.\n");
-				opj_image_destroy(image);
-				return NULL;
+			if (cmptparms->allocate_memory) {
+				comp->data = (OPJ_INT32*) opj_calloc(comp->w * comp->h, sizeof(OPJ_INT32));
+				if(!comp->data) {
+					fprintf(stderr,"Unable to allocate memory for image.\n");
+					opj_image_destroy(image);
+					return NULL;
+				}
 			}
+			comp->owns_data = OPJ_TRUE;
 		}
 	}
 
@@ -83,7 +143,7 @@ void OPJ_CALLCONV opj_image_destroy(opj_image_t *image) {
 			/* image components */
 			for(compno = 0; compno < image->numcomps; compno++) {
 				opj_image_comp_t *image_comp = &(image->comps[compno]);
-				if(image_comp->data) {
+				if(image_comp->data && image_comp->owns_data) {
 					opj_free(image_comp->data);
 				}
 			}
@@ -157,7 +217,7 @@ void opj_copy_image_header(const opj_image_t* p_image_src, opj_image_t* p_image_
 	if (p_image_dest->comps){
 		for(compno = 0; compno < p_image_dest->numcomps; compno++) {
 			opj_image_comp_t *image_comp = &(p_image_dest->comps[compno]);
-			if(image_comp->data) {
+			if(image_comp->data && image_comp->owns_data) {
 				opj_free(image_comp->data);
 			}
 		}

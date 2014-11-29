@@ -1561,6 +1561,7 @@ int main(int argc, char **argv) {
 
     /* set encoding parameters to default values */
     opj_set_default_encoder_parameters(&parameters);
+	parameters.allocate_memory = OPJ_TRUE;
 
     /* Initialize indexfilename and img_fol */
     *indexfilename = 0;
@@ -1604,9 +1605,12 @@ int main(int argc, char **argv) {
     }else{
         num_images=1;
     }
+
+
     /*Encoding image one by one*/
     for(imageno=0;imageno<num_images;imageno++)	{
-        image = NULL;
+		opj_image_t* newImage = NULL;
+
         fprintf(stderr,"\n");
 
         if(img_fol.set_imgdir==1){
@@ -1616,107 +1620,136 @@ int main(int argc, char **argv) {
             }
         }
 
-        switch(parameters.decod_format) {
-        case PGX_DFMT:
-            break;
-        case PXM_DFMT:
-            break;
-        case BMP_DFMT:
-            break;
-        case TIF_DFMT:
-            break;
-        case RAW_DFMT:
-        case RAWL_DFMT:
-            break;
-        case TGA_DFMT:
-            break;
-        case PNG_DFMT:
-            break;
-        default:
-            fprintf(stderr,"skipping file...\n");
-            continue;
-        }
-
         /* decode the source image */
+		/* Note: in this example, encoding a series of BMP images will result in image and codec resources being re-used */
         /* ----------------------- */
 
         switch (parameters.decod_format) {
         case PGX_DFMT:
-            image = pgxtoimage(parameters.infile, &parameters);
-            if (!image) {
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = pgxtoimage(parameters.infile, &parameters);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load pgx file\n");
                 return 1;
             }
             break;
 
         case PXM_DFMT:
-            image = pnmtoimage(parameters.infile, &parameters);
-            if (!image) {
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = pnmtoimage(parameters.infile, &parameters);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load pnm file\n");
                 return 1;
             }
             break;
 
         case BMP_DFMT:
-            image = bmptoimage(parameters.infile, &parameters);
-            if (!image) {
+            newImage = bmptoimage(parameters.infile, &parameters, image);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load bmp file\n");
                 return 1;
             }
             break;
 
-#ifdef OPJ_HAVE_LIBTIFF
+
         case TIF_DFMT:
-            image = tiftoimage(parameters.infile, &parameters);
-            if (!image) {
+#ifdef OPJ_HAVE_LIBTIFF
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = tiftoimage(parameters.infile, &parameters);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load tiff file\n");
                 return 1;
             }
-            break;
 #endif /* OPJ_HAVE_LIBTIFF */
+            break;
+
 
         case RAW_DFMT:
-            image = rawtoimage(parameters.infile, &parameters, &raw_cp);
-            if (!image) {
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = rawtoimage(parameters.infile, &parameters, &raw_cp);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load raw file\n");
                 return 1;
             }
             break;
 
         case RAWL_DFMT:
-            image = rawltoimage(parameters.infile, &parameters, &raw_cp);
-            if (!image) {
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = rawltoimage(parameters.infile, &parameters, &raw_cp);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load raw file\n");
                 return 1;
             }
             break;
 
         case TGA_DFMT:
-            image = tgatoimage(parameters.infile, &parameters);
-            if (!image) {
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = tgatoimage(parameters.infile, &parameters);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load tga file\n");
                 return 1;
             }
             break;
 
-#ifdef OPJ_HAVE_LIBPNG
         case PNG_DFMT:
-            image = pngtoimage(parameters.infile, &parameters);
-            if (!image) {
+#ifdef OPJ_HAVE_LIBPNG
+			if (image)
+				opj_image_destroy(image);
+			image = NULL;
+            newImage = pngtoimage(parameters.infile, &parameters);
+            if (!newImage) {
                 fprintf(stderr, "Unable to load png file\n");
                 return 1;
             }
-            break;
 #endif /* OPJ_HAVE_LIBPNG */
-        }
+			break;
 
-        /* Can happen if input file is TIFF or PNG
- * and OPJ_HAVE_LIBTIF or OPJ_HAVE_LIBPNG is undefined
-*/
-        if( !image) {
-            fprintf(stderr, "Unable to load file: got no image\n");
-            return 1;
+		default:
+		     fprintf(stderr,"skipping file...\n");
+            continue;
         }
+		
+		if (newImage != image) {
+			if (l_codec)
+			 opj_destroy_codec(l_codec);
+			switch(parameters.cod_format) {
+			case J2K_CFMT:	/* JPEG-2000 codestream */
+			{
+				/* Get a decoder handle */
+				l_codec = opj_create_compress(OPJ_CODEC_J2K);
+				break;
+			}
+			case JP2_CFMT:	/* JPEG 2000 compressed image data */
+			{
+				/* Get a decoder handle */
+				l_codec = opj_create_compress(OPJ_CODEC_JP2);
+				break;
+			}
+			default:
+				return 0;
+			}
+
+			/* catch events using our callbacks and give a local context */
+			opj_set_info_handler(l_codec, info_callback,00);
+			opj_set_warning_handler(l_codec, warning_callback,00);
+			opj_set_error_handler(l_codec, error_callback,00);
+		}
+
+		image = newImage;
+		newImage = NULL;
+
 
         /* Decide if MCT should be used */
         if (parameters.tcp_mct == (char) 255) { /* mct mode has not been set in commandline */
@@ -1734,32 +1767,10 @@ int main(int argc, char **argv) {
             }
         }
 
+
+
         /* encode the destination image */
         /* ---------------------------- */
-
-        switch(parameters.cod_format) {
-        case J2K_CFMT:	/* JPEG-2000 codestream */
-        {
-            /* Get a decoder handle */
-            l_codec = opj_create_compress(OPJ_CODEC_J2K);
-            break;
-        }
-        case JP2_CFMT:	/* JPEG 2000 compressed image data */
-        {
-            /* Get a decoder handle */
-            l_codec = opj_create_compress(OPJ_CODEC_JP2);
-            break;
-        }
-        default:
-            fprintf(stderr, "skipping file..\n");
-            opj_stream_destroy(l_stream);
-            continue;
-        }
-
-        /* catch events using our callbacks and give a local context */
-        opj_set_info_handler(l_codec, info_callback,00);
-        opj_set_warning_handler(l_codec, warning_callback,00);
-        opj_set_error_handler(l_codec, error_callback,00);
 
         if( bUseTiles ) {
             parameters.cp_tx0 = 0;
@@ -1819,20 +1830,33 @@ int main(int argc, char **argv) {
 
         fprintf(stdout,"[INFO] Generated outfile %s\n",parameters.outfile);
         /* close and free the byte stream */
-        opj_stream_destroy(l_stream);
-
-        /* free remaining compression structures */
-        opj_destroy_codec(l_codec);
-
-        /* free image data */
-        opj_image_destroy(image);
+		if (l_stream)
+			opj_stream_destroy(l_stream);
+		l_stream = 00;
 
     }
+
+	fprintf(stdout, " \n\nNow freeing compression resources.....\n");
+
+	/* free image data */
+	if (image)
+		opj_image_destroy(image);
+	
+	/* free remaining compression structures */
+	if (l_codec)
+		 opj_destroy_codec(l_codec);
 
     /* free user parameters structure */
     if(parameters.cp_comment)   free(parameters.cp_comment);
     if(parameters.cp_matrice)   free(parameters.cp_matrice);
     if(raw_cp.rawComps) free(raw_cp.rawComps);
 
+	if(dirptr){
+		if (dirptr->filename_buf)
+			free(dirptr->filename_buf);
+		if (dirptr->filename)
+			free(dirptr->filename);
+		free(dirptr);
+    }
     return 0;
 }

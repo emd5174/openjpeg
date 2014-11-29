@@ -75,7 +75,7 @@ opj_image_t* tgatoimage(const char *filename, opj_cparameters_t *parameters);
 int imagetotga(opj_image_t * image, const char *outfile);
 
 /* BMP conversion */
-opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters);
+opj_image_t* bmptoimage(const char *filename, opj_cparameters_t *parameters, opj_image_t* oldImage);
 int imagetobmp(opj_image_t *image, const char *outfile);
 
 /* TIFF conversion*/

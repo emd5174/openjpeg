@@ -1474,6 +1474,9 @@ OPJ_BOOL opj_t1_encode_cblks(   opj_t1_t *t1,
 		opj_tccp_t* tccp = &tcp->tccps[compno];
 		OPJ_UINT32 tile_w = (OPJ_UINT32)(tilec->x1 - tilec->x0);
 
+		if (!tilec->data)
+			continue;
+
 		for (resno = 0; resno < tilec->numresolutions; ++resno) {
 			opj_tcd_resolution_t *res = &tilec->resolutions[resno];
 

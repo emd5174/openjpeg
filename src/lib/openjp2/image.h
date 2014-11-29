@@ -51,6 +51,9 @@ struct opj_cp;
 opj_image_t* opj_image_create0(void);
 
 
+/** Check if two images are equivalent */
+
+OPJ_BOOL opj_image_equal(opj_image_t* lhs, opj_image_t* rhs);
 
 /**
  * Updates the components characteristics of the image from the coding parameters.

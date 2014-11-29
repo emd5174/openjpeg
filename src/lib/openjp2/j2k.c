@@ -4773,12 +4773,15 @@ OPJ_BOOL opj_j2k_update_rates(  opj_j2k_t *p_j2k,
 
         l_tile_size += opj_j2k_get_specific_header_sizes(p_j2k);
 
-        p_j2k->m_specific_param.m_encoder.m_encoded_tile_size = l_tile_size;
+		opj_safe_free(p_j2k->m_specific_param.m_encoder.m_encoded_tile_data);
+		p_j2k->m_specific_param.m_encoder.m_encoded_tile_size = l_tile_size;
         p_j2k->m_specific_param.m_encoder.m_encoded_tile_data =
                         (OPJ_BYTE *) opj_malloc(p_j2k->m_specific_param.m_encoder.m_encoded_tile_size);
         if (p_j2k->m_specific_param.m_encoder.m_encoded_tile_data == 00) {
+				p_j2k->m_specific_param.m_encoder.m_encoded_tile_size = 0;
                 return OPJ_FALSE;
         }
+		
 
         if (OPJ_IS_CINEMA(l_cp->rsiz)) {
                 p_j2k->m_specific_param.m_encoder.m_tlm_sot_offsets_buffer =
@@ -6179,6 +6182,9 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
                 return OPJ_FALSE;
         }
 
+		//reset current tile number
+		p_j2k->m_current_tile_number = 0;
+
         if ((parameters->numresolution <= 0) || (parameters->numresolution > OPJ_J2K_MAXRLVLS)) {
             opj_event_msg(p_manager, EVT_ERROR, "Invalid number of resolutions : %d not in range [1,%d]\n", parameters->numresolution, OPJ_J2K_MAXRLVLS);
             return OPJ_FALSE;
@@ -6361,12 +6367,15 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
 								}
                 sprintf(cp->comment,"%s%s with JPWL", comment, version);
 #else
-                cp->comment = (char*)opj_malloc(clen+strlen(version)+1);
-								if(!cp->comment) {
-								        opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate comment string\n");
-								        return OPJ_FALSE;
-								}
-                sprintf(cp->comment,"%s%s", comment, version);
+				if (!cp->comment) {
+					cp->comment = (char*)opj_malloc(clen+strlen(version)+1);
+									if(!cp->comment) {
+											opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate comment string\n");
+											return OPJ_FALSE;
+									}
+					sprintf(cp->comment,"%s%s", comment, version);
+
+				}
 #endif
                 /* <<UniPG */
 				}
@@ -6446,6 +6455,7 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
 
         /* initialize the mutiple tiles */
         /* ---------------------------- */
+		opj_safe_free(cp->tcps);
         cp->tcps = (opj_tcp_t*) opj_calloc(cp->tw * cp->th, sizeof(opj_tcp_t));
         if (!cp->tcps) {
                 opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate tile coding parameters\n");
@@ -6506,7 +6516,7 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
                 }else{
                         tcp->numpocs = 0;
                 }
-
+				opj_safe_free(tcp->tccps);
                 tcp->tccps = (opj_tccp_t*) opj_calloc(image->numcomps, sizeof(opj_tccp_t));
                 if (!tcp->tccps) {
                         opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate tile component coding parameters\n");
@@ -6518,22 +6528,24 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
                     OPJ_FLOAT32 * lTmpBuf = (OPJ_FLOAT32*)opj_malloc(lMctSize);
                     OPJ_INT32 * l_dc_shift = (OPJ_INT32 *) ((OPJ_BYTE *) parameters->mct_data + lMctSize);
 
-										if (!lTmpBuf) {
+					if (!lTmpBuf) {
                             opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate temp buffer\n");
                             return OPJ_FALSE;
                     }
 
                     tcp->mct = 2;
+					opj_safe_free(tcp->m_mct_coding_matrix);
                     tcp->m_mct_coding_matrix = (OPJ_FLOAT32*)opj_malloc(lMctSize);
-										if (! tcp->m_mct_coding_matrix) {
-                            opj_free(lTmpBuf);
-														lTmpBuf = NULL;
-                            opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate encoder MCT coding matrix \n");
-                            return OPJ_FALSE;
+					if (! tcp->m_mct_coding_matrix) {
+						opj_free(lTmpBuf);
+						lTmpBuf = NULL;
+                        opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate encoder MCT coding matrix \n");
+                        return OPJ_FALSE;
                     }
                     memcpy(tcp->m_mct_coding_matrix,parameters->mct_data,lMctSize);
                     memcpy(lTmpBuf,parameters->mct_data,lMctSize);
 
+					opj_safe_free(tcp->m_mct_decoding_matrix);
                     tcp->m_mct_decoding_matrix = (OPJ_FLOAT32*)opj_malloc(lMctSize);
 										if (! tcp->m_mct_decoding_matrix) {
 														opj_free(lTmpBuf);
@@ -6543,30 +6555,29 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
                     }
                     if(opj_matrix_inversion_f(lTmpBuf,(tcp->m_mct_decoding_matrix),image->numcomps) == OPJ_FALSE) {
                             opj_free(lTmpBuf);
-														lTmpBuf = NULL;
+							lTmpBuf = NULL;
                             opj_event_msg(p_manager, EVT_ERROR, "Failed to inverse encoder MCT decoding matrix \n");
                             return OPJ_FALSE;
 										}
-
-                    tcp->mct_norms = (OPJ_FLOAT64*)
-                                    opj_malloc(image->numcomps * sizeof(OPJ_FLOAT64));
-										if (! tcp->mct_norms) {
-                            opj_free(lTmpBuf);
-														lTmpBuf = NULL;
-                            opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate encoder MCT norms \n");
-                            return OPJ_FALSE;
+					opj_safe_free(tcp->mct_norms);
+                    tcp->mct_norms = (OPJ_FLOAT64*) opj_malloc(image->numcomps * sizeof(OPJ_FLOAT64));
+					if (! tcp->mct_norms) {
+                        opj_free(lTmpBuf);
+						lTmpBuf = NULL;
+                        opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to allocate encoder MCT norms \n");
+                        return OPJ_FALSE;
                     }
                     opj_calculate_norms(tcp->mct_norms,image->numcomps,tcp->m_mct_decoding_matrix);
                     opj_free(lTmpBuf);
 
                     for (i = 0; i < image->numcomps; i++) {
-                            opj_tccp_t *tccp = &tcp->tccps[i];
-                            tccp->m_dc_level_shift = l_dc_shift[i];
+                        opj_tccp_t *tccp = &tcp->tccps[i];
+                        tccp->m_dc_level_shift = l_dc_shift[i];
                     }
 
                     if (opj_j2k_setup_mct_encoding(tcp,image) == OPJ_FALSE) {
                         /* free will be handled by opj_j2k_destroy */
-												opj_event_msg(p_manager, EVT_ERROR, "Failed to setup j2k mct encoding\n");
+						opj_event_msg(p_manager, EVT_ERROR, "Failed to setup j2k mct encoding\n");
                         return OPJ_FALSE;
                     }
                 }
@@ -6581,90 +6592,90 @@ OPJ_BOOL opj_j2k_setup_encoder(     opj_j2k_t *p_j2k,
                         }
                     }
                         for (i = 0; i < image->numcomps; i++) {
-                                opj_tccp_t *tccp = &tcp->tccps[i];
-                                opj_image_comp_t * l_comp = &(image->comps[i]);
+                            opj_tccp_t *tccp = &tcp->tccps[i];
+                            opj_image_comp_t * l_comp = &(image->comps[i]);
 
-                                if (! l_comp->sgnd) {
-                                        tccp->m_dc_level_shift = 1 << (l_comp->prec - 1);
-                                }
+                            if (! l_comp->sgnd) {
+                                    tccp->m_dc_level_shift = 1 << (l_comp->prec - 1);
+                            }
                         }
                 }
 
                 for (i = 0; i < image->numcomps; i++) {
-                        opj_tccp_t *tccp = &tcp->tccps[i];
+                opj_tccp_t *tccp = &tcp->tccps[i];
 
-                        tccp->csty = parameters->csty & 0x01;   /* 0 => one precinct || 1 => custom precinct  */
-                        tccp->numresolutions = (OPJ_UINT32)parameters->numresolution;
-                        tccp->cblkw = (OPJ_UINT32)opj_int_floorlog2(parameters->cblockw_init);
-                        tccp->cblkh = (OPJ_UINT32)opj_int_floorlog2(parameters->cblockh_init);
-                        tccp->cblksty = (OPJ_UINT32)parameters->mode;
-                        tccp->qmfbid = parameters->irreversible ? 0 : 1;
-                        tccp->qntsty = parameters->irreversible ? J2K_CCP_QNTSTY_SEQNT : J2K_CCP_QNTSTY_NOQNT;
-                        tccp->numgbits = 2;
+                tccp->csty = parameters->csty & 0x01;   /* 0 => one precinct || 1 => custom precinct  */
+                tccp->numresolutions = (OPJ_UINT32)parameters->numresolution;
+                tccp->cblkw = (OPJ_UINT32)opj_int_floorlog2(parameters->cblockw_init);
+                tccp->cblkh = (OPJ_UINT32)opj_int_floorlog2(parameters->cblockh_init);
+                tccp->cblksty = (OPJ_UINT32)parameters->mode;
+                tccp->qmfbid = parameters->irreversible ? 0 : 1;
+                tccp->qntsty = parameters->irreversible ? J2K_CCP_QNTSTY_SEQNT : J2K_CCP_QNTSTY_NOQNT;
+                tccp->numgbits = 2;
 
-                        if ((OPJ_INT32)i == parameters->roi_compno) {
-                                tccp->roishift = parameters->roi_shift;
-                        } else {
-                                tccp->roishift = 0;
-                        }
+                if ((OPJ_INT32)i == parameters->roi_compno) {
+                        tccp->roishift = parameters->roi_shift;
+                } else {
+                        tccp->roishift = 0;
+                }
 
-                                if (parameters->csty & J2K_CCP_CSTY_PRT) {
-                                        OPJ_INT32 p = 0, it_res;
-                                        assert( tccp->numresolutions > 0 );
-                                        for (it_res = (OPJ_INT32)tccp->numresolutions - 1; it_res >= 0; it_res--) {
-                                                if (p < parameters->res_spec) {
+                    if (parameters->csty & J2K_CCP_CSTY_PRT) {
+                            OPJ_INT32 p = 0, it_res;
+                            assert( tccp->numresolutions > 0 );
+                            for (it_res = (OPJ_INT32)tccp->numresolutions - 1; it_res >= 0; it_res--) {
+                                    if (p < parameters->res_spec) {
 
-                                                        if (parameters->prcw_init[p] < 1) {
-                                                                tccp->prcw[it_res] = 1;
-                                                        } else {
-                                                                tccp->prcw[it_res] = (OPJ_UINT32)opj_int_floorlog2(parameters->prcw_init[p]);
-                                                        }
+                                            if (parameters->prcw_init[p] < 1) {
+                                                    tccp->prcw[it_res] = 1;
+                                            } else {
+                                                    tccp->prcw[it_res] = (OPJ_UINT32)opj_int_floorlog2(parameters->prcw_init[p]);
+                                            }
 
-                                                        if (parameters->prch_init[p] < 1) {
-                                                                tccp->prch[it_res] = 1;
-                                                        }else {
-                                                                tccp->prch[it_res] = (OPJ_UINT32)opj_int_floorlog2(parameters->prch_init[p]);
-                                                        }
+                                            if (parameters->prch_init[p] < 1) {
+                                                    tccp->prch[it_res] = 1;
+                                            }else {
+                                                    tccp->prch[it_res] = (OPJ_UINT32)opj_int_floorlog2(parameters->prch_init[p]);
+                                            }
 
-                                                } else {
-                                                        OPJ_INT32 res_spec = parameters->res_spec;
-                                                        OPJ_INT32 size_prcw = 0;
-                                                        OPJ_INT32 size_prch = 0;
+                                    } else {
+                                            OPJ_INT32 res_spec = parameters->res_spec;
+                                            OPJ_INT32 size_prcw = 0;
+                                            OPJ_INT32 size_prch = 0;
 
-                                                        assert(res_spec>0); /* issue 189 */
-                                                        size_prcw = parameters->prcw_init[res_spec - 1] >> (p - (res_spec - 1));
-                                                        size_prch = parameters->prch_init[res_spec - 1] >> (p - (res_spec - 1));
+                                            assert(res_spec>0); /* issue 189 */
+                                            size_prcw = parameters->prcw_init[res_spec - 1] >> (p - (res_spec - 1));
+                                            size_prch = parameters->prch_init[res_spec - 1] >> (p - (res_spec - 1));
 
 
-                                                        if (size_prcw < 1) {
-                                                                tccp->prcw[it_res] = 1;
-                                                        } else {
-                                                                tccp->prcw[it_res] = (OPJ_UINT32)opj_int_floorlog2(size_prcw);
-                                                        }
+                                            if (size_prcw < 1) {
+                                                    tccp->prcw[it_res] = 1;
+                                            } else {
+                                                    tccp->prcw[it_res] = (OPJ_UINT32)opj_int_floorlog2(size_prcw);
+                                            }
 
-                                                        if (size_prch < 1) {
-                                                                tccp->prch[it_res] = 1;
-                                                        } else {
-                                                                tccp->prch[it_res] = (OPJ_UINT32)opj_int_floorlog2(size_prch);
-                                                        }
-                                                }
-                                                p++;
-                                                /*printf("\nsize precinct for level %d : %d,%d\n", it_res,tccp->prcw[it_res], tccp->prch[it_res]); */
-                                        }       /*end for*/
-                                } else {
-                                        for (j = 0; j < tccp->numresolutions; j++) {
-                                                tccp->prcw[j] = 15;
-                                                tccp->prch[j] = 15;
-                                        }
-                                }
+                                            if (size_prch < 1) {
+                                                    tccp->prch[it_res] = 1;
+                                            } else {
+                                                    tccp->prch[it_res] = (OPJ_UINT32)opj_int_floorlog2(size_prch);
+                                            }
+                                    }
+                                    p++;
+                                    /*printf("\nsize precinct for level %d : %d,%d\n", it_res,tccp->prcw[it_res], tccp->prch[it_res]); */
+                            }       /*end for*/
+                    } else {
+                            for (j = 0; j < tccp->numresolutions; j++) {
+                                    tccp->prcw[j] = 15;
+                                    tccp->prch[j] = 15;
+                            }
+                    }
 
-                        opj_dwt_calc_explicit_stepsizes(tccp, image->comps[i].prec);
+                    opj_dwt_calc_explicit_stepsizes(tccp, image->comps[i].prec);
                 }
         }
 
         if (parameters->mct_data) {
-                opj_free(parameters->mct_data);
-                parameters->mct_data = 00;
+            opj_free(parameters->mct_data);
+            parameters->mct_data = 00;
         }
         return OPJ_TRUE;
 }
@@ -7464,6 +7475,7 @@ void opj_j2k_destroy (opj_j2k_t *p_j2k)
                 if (p_j2k->m_specific_param.m_encoder.m_encoded_tile_data) {
                         opj_free(p_j2k->m_specific_param.m_encoder.m_encoded_tile_data);
                         p_j2k->m_specific_param.m_encoder.m_encoded_tile_data = 00;
+						p_j2k->m_specific_param.m_encoder.m_encoded_tile_size = 0;
                 }
 
                 if (p_j2k->m_specific_param.m_encoder.m_tlm_sot_offsets_buffer) {
@@ -9722,7 +9734,7 @@ OPJ_BOOL opj_j2k_get_tile(      opj_j2k_t *p_j2k,
         for (compno = 0; compno < p_image->numcomps; compno++) {
                 p_image->comps[compno].resno_decoded = p_j2k->m_output_image->comps[compno].resno_decoded;
 
-                if (p_image->comps[compno].data)
+				if (p_image->comps[compno].data && p_image->comps[compno].owns_data)
                         opj_free(p_image->comps[compno].data);
 
                 p_image->comps[compno].data = p_j2k->m_output_image->comps[compno].data;
@@ -9883,8 +9895,7 @@ OPJ_BOOL opj_j2k_start_compress(opj_j2k_t *p_j2k,
                 for (it_comp = 0 ; it_comp < p_image->numcomps; it_comp++) {
                         if (p_image->comps[it_comp].data) {
                                 p_j2k->m_private_image->comps[it_comp].data =p_image->comps[it_comp].data;
-                                p_image->comps[it_comp].data = NULL;
-
+								p_j2k->m_private_image->comps[it_comp].owns_data = OPJ_FALSE;
                         }
                 }
         }
@@ -10113,7 +10124,9 @@ void opj_j2k_setup_end_compress (opj_j2k_t *p_j2k)
 
         opj_procedure_list_add_procedure(p_j2k->m_procedure_list,(opj_procedure)opj_j2k_write_epc );
         opj_procedure_list_add_procedure(p_j2k->m_procedure_list,(opj_procedure)opj_j2k_end_encoding );
-        opj_procedure_list_add_procedure(p_j2k->m_procedure_list,(opj_procedure)opj_j2k_destroy_header_memory);
+
+		// header memory will be destroyed when j2k object is destroyed, so wait until then
+        //opj_procedure_list_add_procedure(p_j2k->m_procedure_list,(opj_procedure)opj_j2k_destroy_header_memory);
 }
 
 void opj_j2k_setup_encoding_validation (opj_j2k_t *p_j2k)
@@ -10402,8 +10415,9 @@ OPJ_BOOL opj_j2k_end_encoding(  opj_j2k_t *p_j2k,
         assert(p_manager != 00);
         assert(p_stream != 00);
 
-        opj_tcd_destroy(p_j2k->m_tcd);
-        p_j2k->m_tcd = 00;
+		// no need to destroy tcd here: it will be destroyed when p_j2k is destroyed
+        //opj_tcd_destroy(p_j2k->m_tcd);
+        //p_j2k->m_tcd = 00;
 
         if (p_j2k->m_specific_param.m_encoder.m_tlm_sot_offsets_buffer) {
                 opj_free(p_j2k->m_specific_param.m_encoder.m_tlm_sot_offsets_buffer);
@@ -10515,12 +10529,14 @@ static OPJ_BOOL opj_j2k_create_tcd(     opj_j2k_t *p_j2k,
         assert(p_manager != 00);
         assert(p_stream != 00);
 
-        p_j2k->m_tcd = opj_tcd_create(OPJ_FALSE);
+		if (!p_j2k->m_tcd) {
+			p_j2k->m_tcd = opj_tcd_create(OPJ_FALSE);
 
-        if (! p_j2k->m_tcd) {
-                opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to create Tile Coder\n");
-                return OPJ_FALSE;
-        }
+			if (! p_j2k->m_tcd) {
+					opj_event_msg(p_manager, EVT_ERROR, "Not enough memory to create Tile Coder\n");
+					return OPJ_FALSE;
+			}
+		}
 
         if (!opj_tcd_init(p_j2k->m_tcd,p_j2k->m_private_image,&p_j2k->m_cp)) {
                 opj_tcd_destroy(p_j2k->m_tcd);

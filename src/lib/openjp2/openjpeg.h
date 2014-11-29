@@ -494,6 +494,9 @@ typedef struct opj_cparameters {
     /** RSIZ value
         To be used to combine OPJ_PROFILE_*, OPJ_EXTENSION_* and (sub)levels values. */
     OPJ_UINT16 rsiz;
+
+	/** if set to false, then memory will not be allocated for image, and thus for the rest of the encoding */
+	OPJ_BOOL allocate_memory;
 } opj_cparameters_t;  
 
 #define OPJ_DPARAMETERS_IGNORE_PCLR_CMAP_CDEF_FLAG	0x0001
@@ -647,8 +650,10 @@ typedef struct opj_image_comp {
 	OPJ_UINT32 factor;
 	/** image component data */
 	OPJ_INT32 *data;
-  /** alpha channel */
-  OPJ_UINT16 alpha;
+	/** OPJ_TRUE if component owns its own data, OPJ_FALSE otherwise */
+	OPJ_BOOL owns_data;
+	/** alpha channel */
+    OPJ_UINT16 alpha;
 } opj_image_comp_t;
 
 /** 
@@ -698,6 +703,8 @@ typedef struct opj_image_comptparm {
 	OPJ_UINT32 bpp;
 	/** signed (1) / unsigned (0) */
 	OPJ_UINT32 sgnd;
+	
+	OPJ_BOOL allocate_memory;
 } opj_image_cmptparm_t;
 
 
@@ -1065,6 +1072,21 @@ OPJ_API const char * OPJ_CALLCONV opj_version(void);
  * @return returns      a new image structure if successful, returns NULL otherwise
  * */
 OPJ_API opj_image_t* OPJ_CALLCONV opj_image_create(OPJ_UINT32 numcmpts, opj_image_cmptparm_t *cmptparms, OPJ_COLOR_SPACE clrspc);
+
+
+/**
+ * Check if an image header is equivalent to certain parameters
+ *
+ * @param img			image
+ * @param num_components      number of components
+ * @param cmptparms     components parameters
+ * @param clrspc        image color space
+ * @return returns      true if image is equivalent, false otherwise
+ * */
+OPJ_API OPJ_BOOL OPJ_CALLCONV opj_image_header_equals(opj_image_t* img,  OPJ_SIZE_T num_components,
+											opj_image_cmptparm_t* component_parameters, OPJ_COLOR_SPACE color_space);
+
+
 
 /**
  * Deallocate any resources associated with an image
