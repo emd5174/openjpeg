@@ -1,4 +1,4 @@
-/* $Id: tif_unix.c,v 1.22 2010-03-10 18:56:49 bfriesen Exp $ */
+/* $Id$ */
 
 /*
  * Copyright (c) 1988-1997 Sam Leffler
@@ -186,7 +186,11 @@ TIFFOpen(const char* name, const char* mode)
 
 	fd = open(name, m, 0666);
 	if (fd < 0) {
-		TIFFErrorExt(0, module, "%s: Cannot open", name);
+		if (errno > 0 && strerror(errno) != NULL ) {
+			TIFFErrorExt(0, module, "%s: %s", name, strerror(errno) );
+		} else {
+			TIFFErrorExt(0, module, "%s: Cannot open", name);
+		}
 		return ((TIFF *)0);
 	}
 
@@ -253,6 +257,9 @@ TIFFOpenW(const wchar_t* name, const char* mode)
 void*
 _TIFFmalloc(tmsize_t s)
 {
+        if (s == 0)
+                return ((void *) NULL);
+
 	return (malloc((size_t) s));
 }
 
