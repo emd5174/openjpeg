@@ -32,6 +32,10 @@
 #include "tiffiop.h"
 #include <stdlib.h>
 
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define snprintf _snprintf
+#endif
+
 /*
  * NOTE: THIS ARRAY IS ASSUMED TO BE SORTED BY TAG.
  *
