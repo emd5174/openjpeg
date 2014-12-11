@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2007, Communications and Remote Sensing Laboratory, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2007, Professor Benoit Macq
+ * Copyright (c) 2002-2014, Communications and Remote Sensing Laboratory, Universite catholique de Louvain (UCL), Belgium
+ * Copyright (c) 2002-2014,Professor Benoit Macq
  * Copyright (c) 2002-2007, Patrick Piscaglia, Telemis s.a.
  * Copyright (c) 2014, Aaron Boxer
  * All rights reserved.
