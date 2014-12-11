@@ -3,7 +3,6 @@
 # First thing define the common source:
 set(openjpegjni_SRCS
   JavaOpenJPEGDecoder.c
-  JavaOpenJPEGEncoder.c
   ${OPENJPEG_SOURCE_DIR}/src/bin/common/color.c
   ${OPENJPEG_SOURCE_DIR}/src/bin/common/opj_getopt.c
   ${OPENJPEG_SOURCE_DIR}/src/bin/jp2/convert.c
