@@ -7,7 +7,6 @@
  * Copyright (c) 2005, Herve Drolon, FreeImage Team
  * Copyright (c) 2006-2007, Parvatha Elangovan
  * Copyright (c) 2007, Patrick Piscaglia (Telemis)
- * Copyright (c) 2014, Aaron Boxer
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -747,7 +746,6 @@ JNIEXPORT jint JNICALL _Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kt
 	 */
 	if (argc == 1) /* no infile given */
 	{
-		printf("\n Using compressed stream");
 		/* Preparing the transfer of the codestream from Java to C*/
 		usingCompressedStream = OPJ_TRUE;
 		fid = (*env)->GetFieldID(env, cls, "compressedStream", "[B");
@@ -992,7 +990,6 @@ JNIEXPORT jint JNICALL _Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kt
 	/* Set JAVA width and height:
 	 */
 	fid = (*env)->GetFieldID(env, cls, "width", "I");
-	printf("\nwidth %i", width);
 	(*env)->SetIntField(env, obj, fid, width);
 	fid = (*env)->GetFieldID(env, cls, "height", "I");
 	(*env)->SetIntField(env, obj, fid, height);
@@ -1247,7 +1244,6 @@ JNIEXPORT jint JNICALL _Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kt
 					image->comps[i].h, image->comps[i].sgnd);
 		}
 		fputs(bar, stderr);
-		printf("Grayscale is selected.");
 		/* 1 component 8 or 16 bpp image
 		 */
 		grey = image->comps[0].data;
