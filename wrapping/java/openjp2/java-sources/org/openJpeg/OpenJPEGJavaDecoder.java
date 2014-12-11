@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
+ * Copyright (c) 2002-2007, Communications and Remote Sensing Laboratory, Universite catholique de Louvain (UCL), Belgium
+ * Copyright (c) 2002-2007, Professor Benoit Macq
  * Copyright (c) 2002-2007, Patrick Piscaglia, Telemis s.a.
+ * Copyright (c) 2014, Aaron Boxer
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,10 +30,12 @@ package org.openJpeg;
 
 import java.util.Vector;
 
-/** This class decodes one J2K codestream into an image (width + height + depth + pixels[], 
+/** This class decodes one J2K codestream into an image 
+ * (width + height + depth + pixels[], 
  * using the OpenJPEG.org library.
- * To be able to log messages, the called must register a IJavaJ2KDecoderLogger object.
- */
+ * To be able to log messages, the called must register a 
+ * IJavaJ2KDecoderLogger object.
+*/
 public class OpenJPEGJavaDecoder {
 
 	public interface IJavaJ2KDecoderLogger {
@@ -50,27 +53,48 @@ public class OpenJPEGJavaDecoder {
 	/** the quality layers */
 	private int[] layers = null;
 
-	/** Contains the 8 bpp version of the image. May NOT be filled together with image16 or image24.<P>
-	 * We store in Java the 8 or 16 bpp version of the image while the decoder uses a 32 bpp version, because <UL>
-	 * <LI> the storage capacity required is smaller
-	 * <LI> the transfer Java <-- C will be faster
-	 * <LI> the conversion byte/short ==> int will be done faster by the C
-	 * </UL>*/
+/** Contains the 8 bpp version of the image. 
+ * May NOT be filled together with image16 or image24.<P>
+ * We store in Java the 8 or 16 bpp version of the image 
+ * while the decoder uses a 32 bpp version, because <UL>
+ * <LI> the storage capacity required is smaller
+ * <LI> the transfer Java <-- C will be faster
+ * <LI> the conversion byte/short ==> int will be done faster by the C
+ * </UL>
+*/
 	private byte[] image8 = null;
-	/** Contains the 16 bpp version of the image. May NOT be filled together with image8 or image24*/
+
+/** Contains the 16 bpp version of the image. 
+ * May NOT be filled together with image8 or image24
+*/
 	private short[] image16 = null;
-	/** Contains the 24 bpp version of the image. May NOT be filled together with image8 or image16 */
+
+/** Contains the 24 bpp version of the image. 
+ * May NOT be filled together with image8 or image16 
+*/
 	private int[] image24 = null;
-	/** Holds the J2K compressed bytecode to decode */
+
+/** Holds the J2K compressed bytecode to decode 
+*/
     private byte compressedStream[] = null;
-    /** Holds the compressed version of the index file, to be used by the decoder */
+
+/** Holds the compressed version of the index file, 
+ * to be used by the decoder 
+*/
     private byte compressedIndex[] = null;
-    /** Width and Height of the image */
+
+/** Width, Height and Depth of the image 
+*/
     private int width = -1;
     private int height = -1;
     private int depth = -1;
-    /** This parameter is never used in Java but is read by the C library to know the number of resolutions to skip when decoding, 
-     * i.e. if there are 5 resolutions and skipped=1 ==> decode until resolution 4.  */
+
+/** This parameter is never used in Java but is read by 
+ * the C library to know the number of resolutions to skip 
+ * when decoding, 
+ * i.e. if there are 5 resolutions and skipped=1 ==> 
+ * decode until resolution 4.  
+*/
     private int skippedResolutions = 0;
     
     private Vector<IJavaJ2KDecoderLogger> loggers = new Vector();
@@ -84,7 +108,7 @@ public class OpenJPEGJavaDecoder {
 
     public OpenJPEGJavaDecoder(String openJPEGlibraryFullPathAndName) throws ExceptionInInitializerError
     {
-    	if (!isInitialized) {
+    	if(!isInitialized) {
     		try {
     			System.load(openJPEGlibraryFullPathAndName);
     			isInitialized = true;
@@ -102,125 +126,146 @@ public class OpenJPEGJavaDecoder {
     	loggers.removeElement(messagesAndErrorsLogger);
     }
     
-    public int  decodeJ2KtoImage() {
-		if ((image16 == null || (image16 != null && image16.length != width*height)) && (depth==-1 || depth==16)) {
-			image16 = new short[width*height];
-			logMessage("OpenJPEGJavaDecoder.decompressImage: image16 length = " + image16.length + " (" + width + " x " + height + ") ");
-		}
-		if ((image8 == null || (image8 != null && image8.length != width*height)) && (depth==-1 || depth==8)) {
-			image8 = new byte[width*height];
-			logMessage("OpenJPEGJavaDecoder.decompressImage: image8 length = " + image8.length + " (" + width + " x " + height + ") ");
-		}
-		if ((image24 == null || (image24 != null && image24.length != width*height)) && (depth==-1 || depth==24)) {
-			image24 = new int[width*height];
-			logMessage("OpenJPEGJavaDecoder.decompressImage: image24 length = " + image24.length + " (" + width + " x " + height + ") ");
-		}
-		
-		String[] arguments = new String[0 + (decoder_arguments != null ? decoder_arguments.length : 0)];
-		int offset = 0;
-		if (decoder_arguments != null) {
-			for (int i=0; i<decoder_arguments.length; i++) {
-				arguments[i+offset] = decoder_arguments[i];
-			}
-		}
+    public int  decodeJ2KtoImage() 
+   {
+	if((image16 == null 
+		|| (image16 != null && image16.length != width*height))
+	&& (depth==-1 || depth==16)) 
+  {
+	image16 = new short[width*height];
 
-		return internalDecodeJ2KtoImage(arguments);
-    }
+	logMessage("OpenJPEGJavaDecoder.decompressImage: image16 length = " + image16.length + " (" + width + " x " + height + ") ");
+  }
+	if((image8 == null 
+		|| (image8 != null && image8.length != width*height))
+	&& (depth==-1 || depth==8)) 
+  {
+	image8 = new byte[width*height];
+
+	logMessage("OpenJPEGJavaDecoder.decompressImage: image8 length = " + image8.length + " (" + width + " x " + height + ") ");
+  }
+	if((image24 == null 
+		|| (image24 != null && image24.length != width*height))
+	&& (depth==-1 || depth==24)) 
+  {
+	image24 = new int[width*height];
+
+	logMessage("OpenJPEGJavaDecoder.decompressImage: image24 length = " + image24.length + " (" + width + " x " + height + ") ");
+  }
+		
+	String[] arguments = new 
+	 String[0 + (decoder_arguments != null ? decoder_arguments.length : 0)];
+	int offset = 0;
+
+	if(decoder_arguments != null) 
+  {
+	for(int i=0; i<decoder_arguments.length; i++) 
+ {
+	arguments[i+offset] = decoder_arguments[i];
+ }
+  }
+
+	return internalDecodeJ2KtoImage(arguments);
+   }
     
-    /** 
-     * Decode the j2k stream given in the codestream byte[] and fills the image8, image16 or image24 array, according to the bit depth.
-     */
+/** 
+ * Decode the j2k stream given in the codestream byte[] and filles 
+ * the image8, image16 or image24 array, according to the bit depth.
+*/
     private native int internalDecodeJ2KtoImage(String[] parameters);
 
-    /** Image depth in bpp */
+/** Image depth in bpp */
 	public int getDepth() {
 		return depth;
 	}
 
-    /** Image depth in bpp */
+/** Image depth in bpp */
 	public void setDepth(int depth) {
 		this.depth = depth;
 	}
 
-	/** Image height in pixels */
+/** Image height in pixels */
 	public int getHeight() {
 		return height;
 	}
 
-	/** Image height in pixels */
+/** Image height in pixels */
 	public void setHeight(int height) {
 		this.height = height;
 	}
 
-	/** Number of resolutions contained in the image */
+/** Number of resolutions contained in the image */
 	public int getNbResolutions() {
 		return nbResolutions;
 	}
 
-	/** Number of resolutions contained in the image */
+/** Number of resolutions contained in the image */
 	public void setNbResolutions(int nbResolutions) {
 		this.nbResolutions = nbResolutions;
 	}
 
-	/** Width of the image in pixels */
+/** Width of the image in pixels */
 	public int getWidth() {
 		return width;
 	}
 
-	/** Width of the image in pixels */
+/** Width of the image in pixels */
 	public void setWidth(int width) {
 		this.width = width;
 	}
 
-	/** Contains the decompressed version of the image, if the depth in is [9,16] bpp.
-	 * Returns NULL otherwise.
-	 */
+/** Contains the decompressed version of the image, 
+ * if the depth in is [9,16] bpp.
+ * Returns NULL otherwise.
+*/
 	public short[] getImage16() {
 		return image16;
 	}
 
-	/** Contains the decompressed version of the image, if the depth in is [17,24] bpp and the image is in color.
-	 * Returns NULL otherwise.
-	 */
+/** Contains the decompressed version of the image, 
+ * if the depth in is [17,24] bpp and the image is in color.
+ * Returns NULL otherwise.
+*/
 	public int[] getImage24() {
 		return image24;
 	}
 
-	/** Contains the decompressed version of the image, if the depth in is [1,8] bpp.
-	 * Returns NULL otherwise.
-	 */
+/** Contains the decompressed version of the image, 
+ * if the depth in is [1,8] bpp.
+ * Returns NULL otherwise.
+*/
 	public byte[] getImage8() {
 		return image8;
 	}
 
-	/** Sets the compressed version of the index file for this image.
-	 * This index file is used by the decompressor
-	 */
+/** Sets the compressed version of the index file for this image.
+ * This index file is used by the decompressor
+*/
 	public void setCompressedIndex(byte[] compressedIndex) {
 		this.compressedIndex = compressedIndex;
 	}
 
-	/** Sets the codestream to be decoded */
+/** Sets the codestream to be decoded */
 	public void setCompressedStream(byte[] compressedStream) {
 		this.compressedStream = compressedStream;
 	}
 
-	/** @return the compressed code stream length, or -1 if not defined */
+/** @return the compressed code stream length, or -1 if not defined */
 	public long getCodestreamLength() {
-		if (compressedStream == null)
+		if(compressedStream == null)
 			return -1;
 		else return compressedStream.length;
 	}
 	
-	/** This method is called either directly or by the C methods */
+/** This method is called either directly or by the C methods */
 	public void logMessage(String message) {
-		for (IJavaJ2KDecoderLogger logger:loggers)
+		for(IJavaJ2KDecoderLogger logger:loggers)
 			logger.logDecoderMessage(message);
 	}
 	
-	/** This method is called either directly or by the C methods */
+/** This method is called either directly or by the C methods */
 	public void logError(String error) {
-		for (IJavaJ2KDecoderLogger logger:loggers)
+		for(IJavaJ2KDecoderLogger logger:loggers)
 			logger.logDecoderError(error);
 	}
 
@@ -241,10 +286,44 @@ public class OpenJPEGJavaDecoder {
 		skippedResolutions = numberOfSkippedResolutions;
 	}
 
-	/** Contains all the decoding arguments other than the input/output file */
+/** Contains all the decoding arguments other than the input/output file 
+*/
 	public void setDecoderArguments(String[] argumentsForTheDecoder) {
 		decoder_arguments = argumentsForTheDecoder;
 	}
+	
+	public void alloc8()
+	{
+		if ((image8 == null || (image8 != null && image8.length != width
+				* height)))
+		{
+			image8 = new byte[width * height];
+			logMessage("Decoder.alloc8: image8 length = " + image8.length
+					+ " (" + width + " x " + height + ") ");
+		}
+	}
 
+	public void alloc16()
+	{
+		if ((image16 == null || (image16 != null && image16.length != width
+				* height)))
+		{
+			image16 = new short[width * height];
+			logMessage("Decoder.alloc16: image16 length = " + image16.length
+					+ " (" + width + " x " + height + ") ");
+		}
+	}
+
+	public void alloc24()
+	{
+		System.out.println(getDepth());
+		if ((image24 == null || image24.length != width * height))
+		{
+			image24 = new int[width * height];
+			
+			logMessage("Decoder.alloc24: image24 length = " + image24.length
+					+ " (" + width + " x " + height + ") ");
+		}
+	}
 
 }
