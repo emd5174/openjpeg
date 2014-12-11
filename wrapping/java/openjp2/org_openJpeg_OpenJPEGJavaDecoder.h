@@ -7,13 +7,30 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct opj_buffer_info
+{
+    OPJ_BYTE *buf;
+	OPJ_BYTE *cur;
+    OPJ_SIZE_T len;
+} opj_buffer_info_t;
+
 /*
  * Class:     org_openJpeg_OpenJPEGJavaDecoder
  * Method:    internalDecodeJ2KtoImage
  * Signature: ([Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage
+JNIEXPORT jint JNICALL _Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage
   (JNIEnv *, jobject, jobjectArray);
+opj_stream_t* OPJ_CALLCONV opj_stream_create_buffer_stream(opj_buffer_info_t* p_source_buffer, OPJ_BOOL p_is_read_stream);
+static OPJ_SIZE_T opj_read_from_buffer(void * p_buffer,
+    OPJ_SIZE_T p_nb_bytes, opj_buffer_info_t* p_source_buffer);
+static OPJ_SIZE_T opj_write_from_buffer(void * p_buffer,
+    OPJ_SIZE_T p_nb_bytes, opj_buffer_info_t* p_source_buffer);
+static OPJ_SIZE_T opj_skip_from_buffer(OPJ_SIZE_T p_nb_bytes,
+    opj_buffer_info_t * p_source_buffer);
+static OPJ_BOOL opj_seek_from_buffer(OPJ_SIZE_T p_nb_bytes,
+    opj_buffer_info_t * p_source_buffer);
 
 #ifdef __cplusplus
 }
