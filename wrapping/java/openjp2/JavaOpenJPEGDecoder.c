@@ -307,7 +307,7 @@ int parse_cmdline_decoder(int argc, char * const argv[],
 	/* <<UniPG */
 	totlen = sizeof(long_option);
 	img_fol->set_out_format = 0;
-	reset_options_reading();
+	opj_reset_options_reading();
 
 	while (1)
 	{
