@@ -622,7 +622,7 @@ static const char *clr_space(OPJ_COLOR_SPACE i)
 
 /* --------------------------------------------------------------------------
  --------------------   MAIN METHOD, CALLED BY JAVA -----------------------*/
-JNIEXPORT jint JNICALL _Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage(
+JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage(
 		JNIEnv *env, jobject obj, jobjectArray javaParameters)
 {
 	/* To simulate the command line parameters (taken from the javaParameters
