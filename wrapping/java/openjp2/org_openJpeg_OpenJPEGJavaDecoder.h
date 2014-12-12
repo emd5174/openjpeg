@@ -20,7 +20,7 @@ typedef struct opj_buffer_info
  * Method:    internalDecodeJ2KtoImage
  * Signature: ([Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL _Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage
+JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage
   (JNIEnv *, jobject, jobjectArray);
 opj_stream_t* OPJ_CALLCONV opj_stream_create_buffer_stream(opj_buffer_info_t* p_source_buffer, OPJ_BOOL p_is_read_stream);
 static OPJ_SIZE_T opj_read_from_buffer(void * p_buffer,
