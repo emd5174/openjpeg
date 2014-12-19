@@ -1,5 +1,7 @@
-
 /*
+ * Copyright (c) 2002-2014, Communications and Remote Sensing Laboratory, Universite catholique de Louvain (UCL), Belgium
+ * Copyright (c) 2002-2014,Professor Benoit Macq
+ * Copyright (c) 2002-2007, Patrick Piscaglia, Telemis s.a.
  * Copyright (c) 2014, Eric Deas
  * All rights reserved.
  *
@@ -23,438 +25,503 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- */ 
-package org.openJpeg.viewer;
+ */
+package org.openJpeg;
 
-import java.awt.BorderLayout;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.util.Vector;
 
-public class OpenJPEGImageViewer extends JFrame
+/**
+ * This class decodes one J2K codestream into an image (width + height + depth +
+ * pixels[], using the OpenJPEG.org library. To be able to log messages, the
+ * called must register a IJavaJ2KDecoderLogger object.
+ */
+public class OpenJPEGJavaDecoder implements Serializable
 {
 
-	private int openWorkerCount = 0;
-	private JPanel contentPane;
-	private Component clonedJTab;
-	private JTabbedPane tabbedPane;
-	private JPanel firstPanel;
-	private boolean isFirstRemoved = true;
-	private boolean addImage;
-	private JButton closeButton;
-
-	/**
-	 * Launch the application.
-	 */
-	public static void main(String[] args)
-	{
-		EventQueue.invokeLater(new Runnable()
-		{
-			public void run()
-			{
-				try
-				{
-					OpenJPEGImageViewer frame = new OpenJPEGImageViewer();
-					frame.setVisible(true);
-				}
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
-			}
-		});
-	}
-
-	/**
-	 * Create the frame.
-	 */
-	public OpenJPEGImageViewer()
+	static
 	{
 
-		setTitle("Open JPEG 2000");
-		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setBounds(100, 100, 621, 494);
+		/* Load libraries */
 		try
 		{
-			String osName = System.getProperty("os.name");
-			if (osName.contains("Windows"))
-				UIManager
-						.setLookAndFeel("com.sun.java.swing.plaf.windows.WindowsLookAndFeel");
-		}
-		catch (ClassNotFoundException | InstantiationException
-				| IllegalAccessException | UnsupportedLookAndFeelException e1)
-		{
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		JMenuBar menuBar = new JMenuBar();
-		setJMenuBar(menuBar);
-
-		JMenu mnFile = new JMenu("File");
-		menuBar.add(mnFile);
-
-		JMenuItem mntmExit = new JMenuItem("Exit");
-		mntmExit.addActionListener(new ActionListener()
-		{
-			public void actionPerformed(ActionEvent arg0)
+			try
 			{
-				System.exit(ABORT);
+				System.loadLibrary("libopenjp2"); //load libraries
+				System.loadLibrary("libopenjpegjni"); 
+
 			}
-		});
-
-		contentPane = new JPanel();
-		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
-		contentPane.setLayout(new BorderLayout(0, 0));
-		setContentPane(contentPane);
-
-		JPanel panel = new JPanel();
-		contentPane.add(panel, BorderLayout.CENTER);
-
-		JTabbedPane ribbonPane = new JTabbedPane(JTabbedPane.TOP);
-
-		final JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
-		this.tabbedPane = tabbedPane;
-		GroupLayout gl_panel = new GroupLayout(panel);
-		gl_panel.setHorizontalGroup(gl_panel
-				.createParallelGroup(Alignment.TRAILING)
-				.addComponent(ribbonPane)
-				.addComponent(tabbedPane, Alignment.LEADING,
-						GroupLayout.DEFAULT_SIZE, 595, Short.MAX_VALUE));
-		gl_panel.setVerticalGroup(gl_panel.createParallelGroup(
-				Alignment.LEADING).addGroup(
-				gl_panel.createSequentialGroup()
-						.addComponent(ribbonPane, GroupLayout.PREFERRED_SIZE,
-								84, GroupLayout.PREFERRED_SIZE)
-						.addPreferredGap(ComponentPlacement.RELATED)
-						.addComponent(tabbedPane, GroupLayout.DEFAULT_SIZE,
-								332, Short.MAX_VALUE)));
-
-		JScrollPane scrollPane = new JScrollPane();
-		tabbedPane.addTab("Empty View", null, scrollPane, null);
-
-		final JPanel panel_1 = new JPanel();
-		this.firstPanel = panel_1;
-		scrollPane.setViewportView(panel_1);
-
-		JPanel generalTab = new JPanel();
-		ribbonPane.addTab("General", null, generalTab, null);
-
-		JButton openButton = new JButton("Open");
-		openButton.addActionListener(new ActionListener()
-		{
-			public void actionPerformed(ActionEvent arg0)
+			catch (Throwable e0)
 			{
-				Thread t = new Thread(new Runnable()
+				String[] libraryNames = new String[2];
+				if (System.getProperty("os.name").contains("Windows"))
 				{
-					@Override
-					public void run()
+					libraryNames[0] = "\\resource\\libopenjp2.dll";
+					libraryNames[1] = "\\resource\\libopenjpegjni.dll";
+					for (String libraryName : libraryNames)
 					{
-
-						// TODO Auto-generated method stub
-						JFileChooser fileChooser = new JFileChooser();
-						fileChooser.setCurrentDirectory(new File(System
-								.getProperty("user.home")));
-						int result = fileChooser
-								.showOpenDialog(OpenJPEGImageViewer.this);
-
-						File selectedFile = null;
-						if (result == JFileChooser.APPROVE_OPTION)
+						if (!libraryName.startsWith("\\"))
 						{
-							selectedFile = fileChooser.getSelectedFile();
+							throw new IllegalArgumentException(
+									"Needs to start with a / character.");
+						}
+						String[] parts = libraryName.split("\\");
+						String filename = (parts.length > 1) ? parts[parts.length - 1]
+								: null;
+
+						String prefix = "";
+						String suffix = null;
+						if (filename != null)
+						{
+							parts = filename.split("\\.", 2);
+							prefix = parts[0];
+							suffix = (parts.length > 1) ? "."
+									+ parts[parts.length - 1] : null;
 						}
 
-						if (selectedFile != null)
+						if (filename == null || prefix.length() < 3)
+							throw new IllegalArgumentException(
+									"The filename needs to have 3 or more characters.");
+
+						File temp = null;
+						try
+						{
+							temp = File.createTempFile(prefix, suffix);
+						}
+						catch (IOException e1)
+						{
+							e1.printStackTrace();
+						}
+						try
+						{
+							temp.deleteOnExit();
+						}
+						catch (NullPointerException e)
+						{
+							e.printStackTrace();
+						}
+
+						final byte[] buffer = new byte[1024];
+						int readBytes;
+
+						InputStream is = OpenJPEGJavaDecoder.class
+								.getResourceAsStream(libraryName);
+
+						if (is == null)
 						{
 							try
 							{
-								final byte[] bArray = getBytesFromFile(selectedFile);
+								throw new FileNotFoundException("File "
+										+ libraryName
+										+ " was not found inside JAR.");
 
-								OpenJPEGJavaDecoder dec = new OpenJPEGJavaDecoder();
-
-								dec.setCompressedStream(bArray);
-
-								if (tabbedPane.getTabCount() == 1
-										&& isFirstRemoved)
-								{
-									synchronized (OpenJPEGImageViewer.this)
-									{
-										tabbedPane.setTitleAt(0,
-												"Loading Image...");
-										isFirstRemoved = false;
-										openWorkerCount++;
-										repaint();
-									}
-
-									dec.decodeJ2KtoImage();
-									final BufferedImage img = read(dec);
-									final JLabel label = new JLabel(
-											new ImageIcon(img));
-									label.setPreferredSize(new Dimension(img
-											.getWidth(), img.getHeight()));
-									firstPanel.add(label);
-									firstPanel.setPreferredSize(new Dimension(
-											img.getWidth(), img.getHeight()));
-									tabbedPane.setTitleAt(0,
-											selectedFile.getName());
-									synchronized(OpenJPEGImageViewer.this)
-									{
-										openWorkerCount--;
-										repaint();
-									}
-								}
-								else
-								{
-									OpenJPEGImageViewer.this.addTab(
-											selectedFile, dec);
-								}
 							}
-							catch (IOException e)
+							catch (Exception e)
 							{
-								// TODO Auto-generated catch block
 								e.printStackTrace();
 							}
 						}
+
+						OutputStream os = null;
+
+						try
+						{
+							os = new FileOutputStream(temp);
+						}
+						catch (FileNotFoundException e)
+						{
+							e.printStackTrace();
+						}
+
+						try
+						{
+							while ((readBytes = is.read(buffer)) != -1)
+							{
+								os.write(buffer, 0, readBytes);
+							}
+						}
+						catch (IOException e)
+						{
+							e.printStackTrace();
+						}
+						finally
+						{
+							try
+							{
+								os.close();
+								is.close();
+							}
+							catch (IOException e)
+							{
+								e.printStackTrace();
+							}
+						}
+
+						try
+						{
+							System.loadLibrary(temp.getAbsolutePath());
+
+						}
+						catch (Exception e)
+						{
+
+						}
+
 					}
-				});
-				t.start();
+				}
+				else if (System.getProperty("os.name").contains("Linux"))
+				{
+					libraryNames[0] = "/resource/libopenjp2.so";
+					libraryNames[1] = "/resource/libopenjpegjni.so";
+				}
 
 			}
-		});
-
-		JMenuItem mntmOpen = new JMenuItem("Open");
-		mntmOpen.addActionListener(new ActionListener()
-		{
-
-			@Override
-			public void actionPerformed(ActionEvent e)
+			finally
 			{
-				// TODO Auto-generated method stub
 
 			}
 
 		}
-
-		);
-		mnFile.add(mntmOpen);
-		mnFile.add(mntmExit);
-
-		JButton closeButton = new JButton("Close Image");
-		this.closeButton = closeButton;
-		closeButton.addActionListener(new ActionListener()
+		catch (Throwable e)
 		{
-			public void actionPerformed(ActionEvent e)
-			{
-				removeTab();
-			}
-		});
-		GroupLayout gl_generalTab = new GroupLayout(generalTab);
-		gl_generalTab.setHorizontalGroup(gl_generalTab.createParallelGroup(
-				Alignment.LEADING).addGroup(
-				gl_generalTab
-						.createSequentialGroup()
-						.addContainerGap()
-						.addComponent(openButton, GroupLayout.PREFERRED_SIZE,
-								85, GroupLayout.PREFERRED_SIZE)
-						.addPreferredGap(ComponentPlacement.RELATED)
-						.addComponent(closeButton)
-						.addContainerGap(400, Short.MAX_VALUE)));
-		gl_generalTab.setVerticalGroup(gl_generalTab.createParallelGroup(
-				Alignment.LEADING).addGroup(
-				gl_generalTab
-						.createSequentialGroup()
-						.addContainerGap()
-						.addGroup(
-								gl_generalTab
-										.createParallelGroup(
-												Alignment.TRAILING, false)
-										.addComponent(closeButton,
-												Alignment.LEADING,
-												GroupLayout.DEFAULT_SIZE,
-												GroupLayout.DEFAULT_SIZE,
-												Short.MAX_VALUE)
-										.addComponent(openButton,
-												Alignment.LEADING,
-												GroupLayout.DEFAULT_SIZE, 35,
-												Short.MAX_VALUE))
-						.addContainerGap(GroupLayout.DEFAULT_SIZE,
-								Short.MAX_VALUE)));
-		generalTab.setLayout(gl_generalTab);
-		panel.setLayout(gl_panel);
-	}
-
-	private File openFile()
-	{
-		JFileChooser fileChooser = new JFileChooser();
-		fileChooser.setCurrentDirectory(new File(System
-				.getProperty("user.home")));
-		int result = fileChooser.showOpenDialog(this);
-
-		File selectedFile = null;
-		if (result == JFileChooser.APPROVE_OPTION)
-		{
-
-			selectedFile = fileChooser.getSelectedFile();
-		}
-
-		return selectedFile;
-
-	}
-	
-	public void paint(Graphics g)
-	{
-		super.paint(g);
-		if(this.openWorkerCount != 0)
-		{
-			this.closeButton.setEnabled(false);
-		}
-		else
-		{
-			this.closeButton.setEnabled(true);
-		}
-	}
-
-	private static byte[] getBytesFromFile(File file) throws IOException
-	{
-		long length = file.length();
-		if (length > Integer.MAX_VALUE)
-		{
-			throw new IOException("File is too large!");
-		}
-		byte[] bytes = new byte[(int) length];
-		int offset = 0;
-		int numRead = 0;
-		InputStream is = new FileInputStream(file);
-		try
-		{
-			while (offset < bytes.length
-					&& (numRead = is.read(bytes, offset, bytes.length - offset)) >= 0)
-			{
-				offset += numRead;
-			}
-		}
-		finally
-		{
-			is.close();
-		}
-		if (offset < bytes.length)
-		{
-			throw new IOException("Could not completely read file "
-					+ file.getName());
-		}
-		return bytes;
-	}
-
-	public static BufferedImage read(OpenJPEGJavaDecoder decoder)
-			throws IOException
-	{
-		// checkImageIndex(imageIndex);
-		if (decoder == null)
-			return null;
-		int width = decoder.getWidth();
-		int height = decoder.getHeight();
-		BufferedImage bufimg = null;
-		byte[] buf8;
-		short[] buf16;
-		int[] buf24;
-		if ((buf24 = decoder.getImage24()) != null)
-		{
-			int[] bitMasks = new int[] { 0xFF0000, 0xFF00, 0xFF, 0xFF000000 };
-			SinglePixelPackedSampleModel sm = new SinglePixelPackedSampleModel(
-					DataBuffer.TYPE_INT, width, height, bitMasks);
-			DataBufferInt db = new DataBufferInt(buf24, buf24.length);
-			WritableRaster wr = Raster
-					.createWritableRaster(sm, db, new Point());
-
-			bufimg = new BufferedImage(ColorModel.getRGBdefault(), wr, false,
-					null);
-		}
-		else if ((buf16 = decoder.getImage16()) != null)
-		{
-			int[] bits = { 16 };
-			ColorModel cm = new ComponentColorModel(
-					ColorSpace.getInstance(ColorSpace.CS_GRAY), bits, false,
-					false, Transparency.OPAQUE, DataBuffer.TYPE_USHORT);
-			SampleModel sm = cm.createCompatibleSampleModel(width, height);
-			DataBufferUShort db = new DataBufferUShort(buf16, width * height
-					* 2);
-			WritableRaster ras = Raster.createWritableRaster(sm, db, null);
-			bufimg = new BufferedImage(cm, ras, false, null);
-		}
-		else if ((buf8 = decoder.getImage8()) != null)
-		{
-			int[] bits = { 8 };
-			ColorModel cm = new ComponentColorModel(
-					ColorSpace.getInstance(ColorSpace.CS_GRAY), bits, false,
-					false, Transparency.OPAQUE, DataBuffer.TYPE_BYTE);
-			SampleModel sm = cm.createCompatibleSampleModel(width, height);
-			DataBufferByte db = new DataBufferByte(buf8, width * height);
-			WritableRaster ras = Raster.createWritableRaster(sm, db, null);
-			bufimg = new BufferedImage(cm, ras, false, null);
-		}
-		return bufimg;
-	}
-
-	private void addTab(File f, OpenJPEGJavaDecoder decoder)
-	{
-		JScrollPane scrollPane = new JScrollPane();
-		int workerID = 0;
-		JPanel panel_1 = null;
-		synchronized (this)
-		{
-			workerID = tabbedPane.getTabCount();
-			openWorkerCount++;
-			panel_1 = new JPanel();
-			scrollPane.setViewportView(panel_1);
-			this.tabbedPane.addTab("Loading Image", scrollPane);
-			repaint();
-			
-		}
-		
-		
-		decoder.decodeJ2KtoImage();
-		BufferedImage img = null;
-		try
-		{
-			img = read(decoder);
-		}
-		catch (IOException e)
-		{
-			// TODO Auto-generated catch block
+			System.out.println(System.getProperty("java.library.path"));
 			e.printStackTrace();
 		}
-		if (img != null)
-		{
-			final JLabel label = new JLabel(new ImageIcon(img));
-			label.setPreferredSize(new Dimension(img.getWidth(), img
-					.getHeight()));
-			panel_1.add(label);
-			panel_1.setPreferredSize(new Dimension(img.getWidth(), img
-					.getHeight()));
-			this.tabbedPane.setTitleAt(workerID, f.getName());
-		}
-		synchronized (this)
-		{
-			openWorkerCount--;
-			repaint();
-		}
 	}
 
-	private void removeTab()
+	public interface IJavaJ2KDecoderLogger
 	{
-		if (this.tabbedPane.getTabCount() == 1 && this.openWorkerCount == 0)
-		{
-			if (!isFirstRemoved)
-			{
-				this.firstPanel = (JPanel) ((JScrollPane) this.tabbedPane
-						.getSelectedComponent()).getViewport().getComponent(0);
-				this.firstPanel.removeAll();
-				tabbedPane.setTitleAt(0, "No image");
-				tabbedPane.paintComponents(tabbedPane.getGraphics());
-				isFirstRemoved = true;
+		public void logDecoderMessage(String message);
 
+		public void logDecoderError(String message);
+	}
+
+	private static boolean isInitialized = false;
+
+	// ===== decompression parameters =============>
+	// These value may be changed for each image
+	private String[] decoder_arguments = null;
+	/** number of resolutions decompositions */
+	private int nbResolutions = -1;
+	/** the quality layers */
+	private int[] layers = null;
+
+	/**
+	 * Contains the 8 bpp version of the image. May NOT be filled together with
+	 * image16 or image24.
+	 * <P>
+	 * We store in Java the 8 or 16 bpp version of the image while the decoder
+	 * uses a 32 bpp version, because
+	 * <UL>
+	 * <LI>the storage capacity required is smaller
+	 * <LI>the transfer Java <-- C will be faster
+	 * <LI>the conversion byte/short ==> int will be done faster by the C
+	 * </UL>
+	 */
+	private byte[] image8 = null;
+
+	/**
+	 * Contains the 16 bpp version of the image. May NOT be filled together with
+	 * image8 or image24
+	 */
+	private short[] image16 = null;
+
+	/**
+	 * Contains the 24 bpp version of the image. May NOT be filled together with
+	 * image8 or image16
+	 */
+	private int[] image24 = null;
+
+	/** Holds the J2K compressed bytecode to decode */
+	private byte compressedStream[] = null;
+
+	/**
+	 * Holds the compressed version of the index file, to be used by the decoder
+	 */
+	private byte compressedIndex[] = null;
+
+	/** Width, Height and Depth of the image */
+	private int width = -1;
+	private int height = -1;
+	private int depth = -1;
+
+	/**
+	 * This parameter is never used in Java but is read by the C library to know
+	 * the number of resolutions to skip when decoding, i.e. if there are 5
+	 * resolutions and skipped=1 ==> decode until resolution 4.
+	 */
+	private int skippedResolutions = 0;
+
+	private transient Vector<IJavaJ2KDecoderLogger> loggers = new Vector();
+
+	public OpenJPEGJavaDecoder(String openJPEGlibraryFullPathAndName,
+			IJavaJ2KDecoderLogger messagesAndErrorsLogger)
+			throws ExceptionInInitializerError
+	{
+		this(openJPEGlibraryFullPathAndName);
+		loggers.addElement(messagesAndErrorsLogger);
+	}
+
+	public OpenJPEGJavaDecoder(String openJPEGlibraryFullPathAndName)
+			throws ExceptionInInitializerError
+	{
+		if (!isInitialized)
+		{
+			try
+			{
+				System.load(openJPEGlibraryFullPathAndName);
+				isInitialized = true;
+			}
+			catch (Throwable t)
+			{
+				throw new ExceptionInInitializerError(
+						"OpenJPEG Java Decoder: probably impossible to find the C library");
 			}
 		}
-		else if(this.openWorkerCount == 0)
+	}
+
+	public OpenJPEGJavaDecoder()
+	{
+		// TODO Auto-generated constructor stub
+	}
+
+	public void addLogger(IJavaJ2KDecoderLogger messagesAndErrorsLogger)
+	{
+		loggers.addElement(messagesAndErrorsLogger);
+	}
+
+	public void removeLogger(IJavaJ2KDecoderLogger messagesAndErrorsLogger)
+	{
+		loggers.removeElement(messagesAndErrorsLogger);
+	}
+
+	public int decodeJ2KtoImage()
+	{
+		if ((image16 == null || (image16 != null && image16.length != width
+				* height))
+				&& (depth == -1 || depth == 16))
 		{
-			this.tabbedPane.removeTabAt(tabbedPane.getSelectedIndex());
-			tabbedPane.paintComponents(tabbedPane.getGraphics());
+			image16 = new short[width * height];
+
+			logMessage("OpenJPEGJavaDecoder.decompressImage: image16 length = "
+					+ image16.length + " (" + width + " x " + height + ") ");
+		}
+		if ((image8 == null || (image8 != null && image8.length != width
+				* height))
+				&& (depth == -1 || depth == 8))
+		{
+			image8 = new byte[width * height];
+
+			logMessage("OpenJPEGJavaDecoder.decompressImage: image8 length = "
+					+ image8.length + " (" + width + " x " + height + ") ");
+		}
+		if ((image24 == null || (image24 != null && image24.length != width
+				* height))
+				&& (depth == -1 || depth == 24))
+		{
+			image24 = new int[width * height];
+
+			logMessage("OpenJPEGJavaDecoder.decompressImage: image24 length = "
+					+ image24.length + " (" + width + " x " + height + ") ");
+		}
+
+		String[] arguments = new String[0 + (decoder_arguments != null ? decoder_arguments.length
+				: 0)];
+		int offset = 0;
+
+		if (decoder_arguments != null)
+		{
+			for (int i = 0; i < decoder_arguments.length; i++)
+			{
+				arguments[i + offset] = decoder_arguments[i];
+			}
+		}
+
+		return internalDecodeJ2KtoImage(arguments);
+	}
+
+	/**
+	 * Decode the j2k stream given in the codestream byte[] and filles the
+	 * image8, image16 or image24 array, according to the bit depth.
+	 */
+	private native int internalDecodeJ2KtoImage(String[] parameters);
+
+	/** Image depth in bpp */
+	public int getDepth()
+	{
+		return depth;
+	}
+
+	/** Image depth in bpp */
+	public void setDepth(int depth)
+	{
+		this.depth = depth;
+	}
+
+	/** Image height in pixels */
+	public int getHeight()
+	{
+		return height;
+	}
+
+	/** Image height in pixels */
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+
+	/** Number of resolutions contained in the image */
+	public int getNbResolutions()
+	{
+		return nbResolutions;
+	}
+
+	/** Number of resolutions contained in the image */
+	public void setNbResolutions(int nbResolutions)
+	{
+		this.nbResolutions = nbResolutions;
+	}
+
+	/** Width of the image in pixels */
+	public int getWidth()
+	{
+		return width;
+	}
+
+	/** Width of the image in pixels */
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+
+	/**
+	 * Contains the decompressed version of the image, if the depth in is [9,16]
+	 * bpp. Returns NULL otherwise.
+	 */
+	public short[] getImage16()
+	{
+		return image16;
+	}
+
+	/**
+	 * Contains the decompressed version of the image, if the depth in is
+	 * [17,24] bpp and the image is in color. Returns NULL otherwise.
+	 */
+	public int[] getImage24()
+	{
+		return image24;
+	}
+
+	/**
+	 * Contains the decompressed version of the image, if the depth in is [1,8]
+	 * bpp. Returns NULL otherwise.
+	 */
+	public byte[] getImage8()
+	{
+		return image8;
+	}
+
+	/**
+	 * Sets the compressed version of the index file for this image. This index
+	 * file is used by the decompressor
+	 */
+	public void setCompressedIndex(byte[] compressedIndex)
+	{
+		this.compressedIndex = compressedIndex;
+	}
+
+	/** Sets the codestream to be decoded */
+	public void setCompressedStream(byte[] compressedStream)
+	{
+		this.compressedStream = compressedStream;
+	}
+
+	/** @return the compressed code stream length, or -1 if not defined */
+	public long getCodestreamLength()
+	{
+		if (compressedStream == null)
+			return -1;
+		else
+			return compressedStream.length;
+	}
+
+	/** This method is called either directly or by the C methods */
+	public void logMessage(String message)
+	{
+		for (IJavaJ2KDecoderLogger logger : loggers)
+			logger.logDecoderMessage(message);
+	}
+
+	/** This method is called either directly or by the C methods */
+	public void logError(String error)
+	{
+		for (IJavaJ2KDecoderLogger logger : loggers)
+			logger.logDecoderError(error);
+	}
+
+	public void reset()
+	{
+		nbResolutions = -1;
+		layers = null;
+		image8 = null;
+		image16 = null;
+		image24 = null;
+		compressedStream = null;
+		compressedIndex = null;
+		width = -1;
+		height = -1;
+		depth = -1;
+	}
+
+	public void setSkippedResolutions(int numberOfSkippedResolutions)
+	{
+		skippedResolutions = numberOfSkippedResolutions;
+	}
+
+	/** Contains all the decoding arguments other than the input/output file */
+	public void setDecoderArguments(String[] argumentsForTheDecoder)
+	{
+		decoder_arguments = argumentsForTheDecoder;
+	}
+
+	public void alloc8()
+	{
+		if ((image8 == null || (image8 != null && image8.length != width
+				* height)))
+		{
+			image8 = new byte[width * height];
+			logMessage("Decoder.alloc8: image8 length = " + image8.length
+					+ " (" + width + " x " + height + ") ");
 		}
 	}
+
+	public void alloc16()
+	{
+		if ((image16 == null || (image16 != null && image16.length != width
+				* height)))
+		{
+			image16 = new short[width * height];
+			logMessage("Decoder.alloc16: image16 length = " + image16.length
+					+ " (" + width + " x " + height + ") ");
+		}
+	}
+
+	public void alloc24()
+	{
+
+		if ((image24 == null || image24.length != width * height))
+		{
+			image24 = new int[width * height];
+
+			logMessage("Decoder.alloc24: image24 length = " + image24.length
+					+ " (" + width + " x " + height + ") ");
+		}
+	}
+
 }
