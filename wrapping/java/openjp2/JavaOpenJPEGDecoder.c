@@ -59,8 +59,7 @@
 /* position 45: "\xff\x52" */
 #define J2K_CODESTREAM_MAGIC "\xff\x4f\xff\x51"
 
-typedef struct callback_variables
-{
+typedef struct callback_variables {
 	JNIEnv *env;
 	/** 'jclass' object used to call a Java method from the C */
 	jobject *jobj;
@@ -69,37 +68,28 @@ typedef struct callback_variables
 	jmethodID error_mid;
 } callback_variables_t;
 
-static int buffer_format(opj_buffer_info_t* buf_info)
-{
+static int buffer_format(opj_buffer_info_t* buf_info) {
 	int magic_format;
 	if (!buf_info || buf_info->len < 12)
 		return -1;
 	if (memcmp(buf_info->buf, JP2_RFC3745_MAGIC, 12) == 0
-			|| memcmp(buf_info->buf, JP2_MAGIC, 4) == 0)
-	{
+			|| memcmp(buf_info->buf, JP2_MAGIC, 4) == 0) {
 		magic_format = JP2_CFMT;
-	}
-	else
-	{
-		if (memcmp(buf_info->buf, J2K_CODESTREAM_MAGIC, 4) == 0)
-		{
+	} else {
+		if (memcmp(buf_info->buf, J2K_CODESTREAM_MAGIC, 4) == 0) {
 			magic_format = J2K_CFMT;
-		}
-		else
+		} else
 			return -1;
 	}
 	return magic_format;
 }/*  buffer_format() */
 
-static int ext_file_format(const char *filename)
-{
+static int ext_file_format(const char *filename) {
 	unsigned int i;
 
-	static const char *extension[] =
-	{ "j2k", "jp2", "jpt", "j2c", "jpc" };
+	static const char *extension[] = { "j2k", "jp2", "jpt", "j2c", "jpc" };
 
-	static const int format[] =
-	{
+	static const int format[] = {
 	J2K_CFMT, JP2_CFMT, JPT_CFMT, J2K_CFMT, J2K_CFMT };
 
 	char *ext = strrchr(filename, '.');
@@ -108,10 +98,8 @@ static int ext_file_format(const char *filename)
 		return -1;
 
 	ext++;
-	if (*ext)
-	{
-		for (i = 0; i < sizeof(format) / sizeof(*format); i++)
-		{
+	if (*ext) {
+		for (i = 0; i < sizeof(format) / sizeof(*format); i++) {
 			if (strnicmp(ext, extension[i], 3) == 0)
 				return format[i];
 		}
@@ -125,8 +113,7 @@ static int ext_file_format(const char *filename)
 #define J2K_CODESTREAM_MAGIC "\xff\x4f\xff\x51"
 static const char *bar = "\n===========================================\n";
 
-static int infile_format(const char *fname)
-{
+static int infile_format(const char *fname) {
 	FILE *reader;
 	const char *s, *magic_s;
 	int ext_format, magic_format;
@@ -134,8 +121,7 @@ static int infile_format(const char *fname)
 
 	reader = fopen(fname, "rb");
 
-	if (reader == NULL)
-	{
+	if (reader == NULL) {
 		fprintf(stderr, "%s:%d:can not open file\n\t%s\n", __FILE__, __LINE__,
 				fname);
 		return -1;
@@ -150,17 +136,13 @@ static int infile_format(const char *fname)
 		return JPT_CFMT;
 
 	if (memcmp(buf, JP2_RFC3745_MAGIC, 12) == 0
-			|| memcmp(buf, JP2_MAGIC, 4) == 0)
-	{
+			|| memcmp(buf, JP2_MAGIC, 4) == 0) {
 		magic_format = JP2_CFMT;
 		magic_s = "'.jp2'";
-	}
-	else if (memcmp(buf, J2K_CODESTREAM_MAGIC, 4) == 0)
-	{
+	} else if (memcmp(buf, J2K_CODESTREAM_MAGIC, 4) == 0) {
 		magic_format = J2K_CFMT;
 		magic_s = "'.j2k' or '.jpc' or '.j2c'";
-	}
-	else
+	} else
 		return -1;
 
 	if (magic_format == ext_format)
@@ -176,16 +158,14 @@ static int infile_format(const char *fname)
 	return magic_format;
 }/* infile_format() */
 
-typedef struct dircnt
-{
+typedef struct dircnt {
 	/** Buffer for holding images read from Directory*/
 	char *filename_buf;
 	/** Pointer to the buffer*/
 	char **filename;
 } dircnt_t;
 
-typedef struct img_folder
-{
+typedef struct img_folder {
 	/** The directory path of the folder containing input images*/
 	char *imgdirpath;
 	/** Output format*/
@@ -197,8 +177,7 @@ typedef struct img_folder
 
 } img_fol_t;
 
-void decode_help_display()
-{
+void decode_help_display() {
 	fprintf(stdout, "HELP\n----\n\n");
 	fprintf(stdout,
 			"- the -h option displays this help information on screen\n\n");
@@ -257,23 +236,19 @@ void decode_help_display()
 
 /* -------------------------------------------------------------------------- */
 
-int outfile_format(char *filename)
-{
+int outfile_format(char *filename) {
 	unsigned int i;
-	static const char *extension[] =
-	{ "pgx", "pnm", "pgm", "ppm", "bmp", "tif", "png", "raw", "tga", "j2k",
-			"jp2", "jpt", "j2c" };
-	static const int format[] =
-	{ PGX_DFMT, PXM_DFMT, PXM_DFMT, PXM_DFMT, BMP_DFMT, TIF_DFMT, PNG_DFMT,
+	static const char *extension[] = { "pgx", "pnm", "pgm", "ppm", "bmp", "tif",
+			"png", "raw", "tga", "j2k", "jp2", "jpt", "j2c" };
+	static const int format[] = { PGX_DFMT, PXM_DFMT, PXM_DFMT, PXM_DFMT,
+			BMP_DFMT, TIF_DFMT, PNG_DFMT,
 			RAW_DFMT, TGA_DFMT, J2K_CFMT, JP2_CFMT, JPT_CFMT, J2K_CFMT };
 	char * ext = strrchr(filename, '.');
 	if (ext == NULL)
 		return -1;
 	ext++;
-	if (*ext)
-	{
-		for (i = 0; i < sizeof(format) / sizeof(*format); i++)
-		{
+	if (*ext) {
+		for (i = 0; i < sizeof(format) / sizeof(*format); i++) {
 			if (strnicmp(ext, extension[i], 3) == 0)
 				return format[i];
 		}
@@ -284,14 +259,11 @@ int outfile_format(char *filename)
 /* -------------------------------------------------------------------------- */
 
 int parse_cmdline_decoder(int argc, char * const argv[],
-		opj_dparameters_t *parameters, img_fol_t *img_fol)
-{
+		opj_dparameters_t *parameters, img_fol_t *img_fol) {
 	/* parse the command line */
 	int totlen;
-	opj_option_t long_option[] =
-	{
-	{ "ImgDir", REQ_ARG, NULL, 'y' },
-	{ "OutFor", REQ_ARG, NULL, 'O' }, };
+	opj_option_t long_option[] = { { "ImgDir", REQ_ARG, NULL, 'y' }, { "OutFor",
+			REQ_ARG, NULL, 'O' }, };
 
 	/* UniPG>> */
 	const char optlist[] = "i:o:r:l:hx:"
@@ -309,19 +281,16 @@ int parse_cmdline_decoder(int argc, char * const argv[],
 	img_fol->set_out_format = 0;
 	opj_reset_options_reading();
 
-	while (1)
-	{
+	while (1) {
 		int c = opj_getopt_long(argc, argv, optlist, long_option, totlen);
 		if (c == -1)
 			break;
-		switch (c)
-		{
+		switch (c) {
 		case 'i': /* input file */
 		{
 			char *infile = opj_optarg;
 			parameters->decod_format = infile_format(infile);
-			switch (parameters->decod_format)
-			{
+			switch (parameters->decod_format) {
 			case J2K_CFMT:
 			case JP2_CFMT:
 			case JPT_CFMT:
@@ -342,8 +311,7 @@ int parse_cmdline_decoder(int argc, char * const argv[],
 		{
 			char *outfile = opj_optarg;
 			parameters->cod_format = outfile_format(outfile);
-			switch (parameters->cod_format)
-			{
+			switch (parameters->cod_format) {
 			case PGX_DFMT:
 			case PXM_DFMT:
 			case BMP_DFMT:
@@ -372,8 +340,7 @@ int parse_cmdline_decoder(int argc, char * const argv[],
 			sprintf(outformat, ".%s", of);
 			img_fol->set_out_format = 1;
 			parameters->cod_format = outfile_format(outformat);
-			switch (parameters->cod_format)
-			{
+			switch (parameters->cod_format) {
 			case PGX_DFMT:
 				img_fol->out_format = "pgx";
 				break;
@@ -544,8 +511,7 @@ int parse_cmdline_decoder(int argc, char * const argv[],
 /**
  error callback returning the message to Java andexpecting a callback_variables_t client object
  */
-void error_callback(const char *msg, void *client_data)
-{
+void error_callback(const char *msg, void *client_data) {
 	callback_variables_t* vars = (callback_variables_t*) client_data;
 	JNIEnv *env = vars->env;
 	jstring jbuffer;
@@ -554,8 +520,7 @@ void error_callback(const char *msg, void *client_data)
 	(*env)->ExceptionClear(env);
 	(*env)->CallVoidMethod(env, *(vars->jobj), vars->error_mid, jbuffer);
 
-	if ((*env)->ExceptionOccurred(env))
-	{
+	if ((*env)->ExceptionOccurred(env)) {
 		fprintf(stderr, "C: Exception during call back method\n");
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
@@ -565,8 +530,7 @@ void error_callback(const char *msg, void *client_data)
 /**
  warning callback returning the message to Java andexpecting a callback_variables_t client object
  */
-void warning_callback(const char *msg, void *client_data)
-{
+void warning_callback(const char *msg, void *client_data) {
 	callback_variables_t* vars = (callback_variables_t*) client_data;
 	JNIEnv *env = vars->env;
 	jstring jbuffer;
@@ -575,8 +539,7 @@ void warning_callback(const char *msg, void *client_data)
 	(*env)->ExceptionClear(env);
 	(*env)->CallVoidMethod(env, *(vars->jobj), vars->message_mid, jbuffer);
 
-	if ((*env)->ExceptionOccurred(env))
-	{
+	if ((*env)->ExceptionOccurred(env)) {
 		fprintf(stderr, "C: Exception during call back method\n");
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
@@ -586,8 +549,7 @@ void warning_callback(const char *msg, void *client_data)
 /**
  information callback returning the message to Java andexpecting a callback_variables_t client object
  */
-void info_callback(const char *msg, void *client_data)
-{
+void info_callback(const char *msg, void *client_data) {
 	callback_variables_t* vars = (callback_variables_t*) client_data;
 	JNIEnv *env = vars->env;
 	jstring jbuffer;
@@ -596,8 +558,7 @@ void info_callback(const char *msg, void *client_data)
 	(*env)->ExceptionClear(env);
 	(*env)->CallVoidMethod(env, *(vars->jobj), vars->message_mid, jbuffer);
 
-	if ((*env)->ExceptionOccurred(env))
-	{
+	if ((*env)->ExceptionOccurred(env)) {
 		fprintf(stderr, "C: Exception during call back method\n");
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
@@ -605,8 +566,7 @@ void info_callback(const char *msg, void *client_data)
 	(*env)->DeleteLocalRef(env, jbuffer);
 }
 
-static const char *clr_space(OPJ_COLOR_SPACE i)
-{
+static const char *clr_space(OPJ_COLOR_SPACE i) {
 	if (i == OPJ_CLRSPC_SRGB)
 		return "OPJ_CLRSPC_SRGB";
 	if (i == OPJ_CLRSPC_GRAY)
@@ -622,8 +582,7 @@ static const char *clr_space(OPJ_COLOR_SPACE i)
 /* --------------------------------------------------------------------------
  --------------------   MAIN METHOD, CALLED BY JAVA -----------------------*/
 JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage(
-		JNIEnv *env, jobject obj, jobjectArray javaParameters)
-{
+		JNIEnv *env, jobject obj, jobjectArray javaParameters) {
 	/* To simulate the command line parameters (taken from the javaParameters
 	 * variable) and be able to re-use the 'parse_cmdline_decoder' method:
 	 */
@@ -664,8 +623,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	argc = (int) arraySize + 1;
 	argv = (const char**) opj_malloc(argc * sizeof(char*));
 
-	if (argv == NULL)
-	{
+	if (argv == NULL) {
 		fprintf(stderr, "%s:%d:\n\tMEMORY OUT\n", __FILE__, __LINE__);
 		return -1;
 	}
@@ -687,8 +645,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	 */
 	argv[0] = "OpenJPEGJavaDecoder";/* program name: not used */
 
-	for (i = 1; i < argc; i++)
-	{
+	for (i = 1; i < argc; i++) {
 		object = (*env)->GetObjectArrayElement(env, javaParameters, i - 1);
 		argv[i] = (char*) (*env)->GetStringUTFChars(env, object, &isCopy);
 	}
@@ -715,8 +672,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	parse_cmdline_decoder(argc, (char * const *) argv, &parameters, &img_fol);
 	/*-------------------------------------------------------------*/
 	/* Release the Java arguments array*/
-	for (i = 1; i < argc; i++)
-	{
+	for (i = 1; i < argc; i++) {
 		(*env)->ReleaseStringUTFChars(env,
 				(*env)->GetObjectArrayElement(env, javaParameters, i - 1),
 				argv[i]);
@@ -733,8 +689,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		codec_format = OPJ_CODEC_JP2;
 	else if (parameters.decod_format == JPT_CFMT)
 		codec_format = OPJ_CODEC_JPT;
-	else
-	{
+	else {
 		/* Already checked in parse_cmdline_decoder():
 		 */
 		return -1;
@@ -755,8 +710,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		src = (unsigned char*) jbBody;
 		jbyteArray jbaCompressed = (*env)->GetObjectField(env, obj, fid);
 
-		if (jbaCompressed != NULL)
-		{
+		if (jbaCompressed != NULL) {
 			buf_info.len = (*env)->GetArrayLength(env, jbaCompressed);
 
 			jbyte* jbBodyCompressed = (*env)->GetByteArrayElements(env,
@@ -764,8 +718,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 			buf_info.buf = (unsigned char*) jbBodyCompressed;
 		}
-		if (!buf_info.buf)
-		{
+		if (!buf_info.buf) {
 
 			return -1;
 		}
@@ -778,8 +731,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			codec_format = OPJ_CODEC_JP2;
 		else if (decod_format == JPT_CFMT)
 			codec_format = OPJ_CODEC_JPT;
-		else
-		{
+		else {
 			/* Already checked in parse_cmdline_decoder():
 			 */
 			fprintf(stderr, "%s:%d: Could not find decod_format.\n",
@@ -790,24 +742,19 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		parameters.decod_format = decod_format;
 	}/* if(parameters.infile[0] == 0) */
 
-	if (usingCompressedStream == OPJ_FALSE)
-	{
+	if (usingCompressedStream == OPJ_FALSE) {
 		infile = parameters.infile;
 
 		l_stream = opj_stream_create_default_file_stream(infile, IS_READER);
 
-		if (l_stream == NULL)
-		{
+		if (l_stream == NULL) {
 			fprintf(stderr, "%s:%d:\n\tSTREAM failed\n", __FILE__, __LINE__);
 			goto fin0;
 		}
 
-	}
-	else
-	{
+	} else {
 		l_stream = opj_stream_create_buffer_stream(&buf_info, OPJ_TRUE);
-		if (l_stream == NULL)
-		{
+		if (l_stream == NULL) {
 			fprintf(stderr, "%s:%d:\n\tSTREAM failed\n", __FILE__, __LINE__);
 			goto fin0;
 		}
@@ -815,8 +762,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 	l_codec = opj_create_decompress(codec_format);
 
-	if (l_codec == NULL)
-	{
+	if (l_codec == NULL) {
 		fprintf(stderr, "%s:%d:\n\tCODEC failed\n", __FILE__, __LINE__);
 		goto fin0;
 	}
@@ -827,48 +773,41 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	opj_set_warning_handler(l_codec, warning_callback, &msgErrorCallback_vars);
 	opj_set_error_handler(l_codec, error_callback, &msgErrorCallback_vars);
 
-	if (!opj_setup_decoder(l_codec, &parameters))
-	{
+	if (!opj_setup_decoder(l_codec, &parameters)) {
 		fprintf(stderr, "%s:%d:\n\tSETUP_DECODER failed\n", __FILE__, __LINE__);
 		goto fin0;
 	}
-	if (!opj_read_header(l_stream, l_codec, &image))
-	{
+	if (!opj_read_header(l_stream, l_codec, &image)) {
 		fprintf(stderr, "%s:%d:\n\tREAD_HEADER failed\n", __FILE__, __LINE__);
 		goto fin0;
 	}
 
-	if (!parameters.nb_tile_to_decode)
-	{
+	if (!parameters.nb_tile_to_decode) {
 		/* Optional if you want decode the entire image
 		 */
 		if (!opj_set_decode_area(l_codec, image, parameters.DA_x0,
-				parameters.DA_y0, parameters.DA_x1, parameters.DA_y1))
-		{
+				parameters.DA_y0, parameters.DA_x1, parameters.DA_y1)) {
 			fprintf(stderr, "%s:%d:\n\tSET_DECODE_AREA failed\n",
 			__FILE__, __LINE__);
 			goto fin0;
 		}
 		/* Get the decoded image
 		 */
-		if (!opj_decode(l_codec, l_stream, image))
-		{
+		if (!opj_decode(l_codec, l_stream, image)) {
 			fprintf(stderr, "%s:%d:\n\tDECODE_AREA failed\n", __FILE__,
-					__LINE__);
+			__LINE__);
 			goto fin0;
 		}
 	}/* if(!parameters.nb_tile_to_decode) */
 	else if (!opj_get_decoded_tile(l_codec, l_stream, image,
-			parameters.tile_index))
-	{
+			parameters.tile_index)) {
 		fprintf(stderr, "%s:%d:\n\tDECODE_TILE failed\n", __FILE__, __LINE__);
 		goto fin0;
 	}
 
-	if (!opj_end_decompress(l_codec, l_stream))
-	{
+	if (!opj_end_decompress(l_codec, l_stream)) {
 		fprintf(stderr, "%s:%d:\n\tEND_DECOMPRESS failed\n", __FILE__,
-				__LINE__);
+		__LINE__);
 		goto fin0;
 	}
 	if (image->color_space != OPJ_CLRSPC_SYCC && image->numcomps == 3
@@ -878,13 +817,11 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	else if (image->numcomps <= 2)
 		image->color_space = OPJ_CLRSPC_GRAY;
 
-	if (image->color_space == OPJ_CLRSPC_SYCC)
-	{
+	if (image->color_space == OPJ_CLRSPC_SYCC) {
 		color_sycc_to_rgb(image);
 	}
 
-	if (image->icc_profile_buf)
-	{
+	if (image->icc_profile_buf) {
 #if defined(OPJ_HAVE_LIBLCMS1) || defined(OPJ_HAVE_LIBLCMS2)
 		color_apply_icc_profile(image);
 #endif
@@ -903,8 +840,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	if (l_stream)
 		opj_stream_destroy(l_stream);
 
-	if (fails)
-	{
+	if (fails) {
 		if (image)
 			opj_image_destroy(image);
 
@@ -916,8 +852,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 	 write the decoded version into a file.
 	 Implemented for debug purpose.
 	 */
-	switch (parameters.cod_format)
-	{
+	switch (parameters.cod_format) {
 	case PXM_DFMT: /* PNM PGM PPM */
 		if (imagetopnm(image, parameters.outfile))
 			fprintf(stdout, "Outfile %s not generated\n", parameters.outfile);
@@ -975,8 +910,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		/* Can happen if output file is TIFF or PNG
 		 * and OPJ_HAVE_LIBTIF or OPJ_HAVE_LIBPNG is undefined
 		 */
-		if (usingCompressedStream == OPJ_FALSE)
-		{
+		if (usingCompressedStream == OPJ_FALSE) {
 			fprintf(stderr, "Outfile %s not generated\n", parameters.outfile);
 			goto fin1;
 		}
@@ -1003,7 +937,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			|| (image->numcomps == 2 && image->comps[0].dx == image->comps[1].dx
 					&& image->comps[0].dy == image->comps[1].dy
 					&& image->comps[0].prec == image->comps[1].prec)) /* GA */
-	{
+			{
 		int pix, has_alpha4, has_alpha2, has_rgb;
 
 		shiftA = shiftR = shiftG = shiftB = 0;
@@ -1015,8 +949,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		has_alpha2 = (image->numcomps == 2);
 		hasAlpha = (has_alpha4 || has_alpha2);
 
-		if (has_rgb)
-		{
+		if (has_rgb) {
 			if (image->comps[0].prec > 8)
 				shiftR = image->comps[0].prec - 8;
 
@@ -1039,8 +972,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			green = image->comps[1].data;
 			blue = image->comps[2].data;
 
-			if (has_alpha4)
-			{
+			if (has_alpha4) {
 				alpha = image->comps[3].data;
 
 				if (image->comps[3].prec > 8)
@@ -1051,8 +983,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			}
 
 		} /* if(has_rgb) */
-		else
-		{
+		else {
 			if (image->comps[0].prec > 8)
 				shiftR = image->comps[0].prec - 8;
 
@@ -1061,8 +992,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 			red = green = blue = image->comps[0].data;
 
-			if (has_alpha2)
-			{
+			if (has_alpha2) {
 				alpha = image->comps[1].data;
 
 				if (image->comps[1].prec > 8)
@@ -1076,8 +1006,8 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		ac = 255;/* 255: FULLY_OPAQUE; 0: FULLY_TRANSPARENT */
 
 		/*
-		 	 Allocate JAVA memory:
-		*/
+		 Allocate JAVA memory:
+		 */
 
 		mid = (*env)->GetMethodID(env, cls, "alloc24", "()V");
 
@@ -1094,12 +1024,10 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 		ptrIBody = jiBody;
 
-		for (i = 0; i < width * height; i++)
-		{
+		for (i = 0; i < width * height; i++) {
 			pix = addR + *red++;
 
-			if (shiftR)
-			{
+			if (shiftR) {
 				pix = ((pix >> shiftR) + ((pix >> (shiftR - 1)) % 2));
 				if (pix > 255)
 					pix = 255;
@@ -1110,8 +1038,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 			pix = addG + *green++;
 
-			if (shiftG)
-			{
+			if (shiftG) {
 				pix = ((pix >> shiftG) + ((pix >> (shiftG - 1)) % 2));
 				if (pix > 255)
 					pix = 255;
@@ -1122,8 +1049,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 			pix = addB + *blue++;
 
-			if (shiftB)
-			{
+			if (shiftB) {
 				pix = ((pix >> shiftB) + ((pix >> (shiftB - 1)) % 2));
 				if (pix > 255)
 					pix = 255;
@@ -1132,12 +1058,10 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			}
 			bc = (unsigned char) pix;
 
-			if (hasAlpha)
-			{
+			if (hasAlpha) {
 				pix = addA + *alpha++;
 
-				if (shiftA)
-				{
+				if (shiftA) {
 					pix = ((pix >> shiftA) + ((pix >> (shiftA - 1)) % 2));
 					if (pix > 255)
 						pix = 255;
@@ -1154,7 +1078,6 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 		(*env)->ReleaseIntArrayElements(env, jia, jiBody, 0);
 
-
 	}/* if(image->numcomps >= 3  */
 	else if (image->numcomps == 1) /* Grey */
 	{
@@ -1163,10 +1086,10 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		addG = (image->comps[0].sgnd ? 1 << (image->comps[0].prec - 1) : 0);
 
 		if (image->comps[0].prec <= 8) //FIXME
-		{
+				{
 			/*
-				Allocate JAVA memory:
-			*/
+			 Allocate JAVA memory:
+			 */
 			mid = (*env)->GetMethodID(env, cls, "alloc8", "()V");
 
 			(*env)->CallVoidMethod(env, obj, mid);
@@ -1176,14 +1099,12 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			jbBody = (*env)->GetByteArrayElements(env, jba, 0);
 			ptrBBody = jbBody;
 
-			for (i = 0; i < width * height; i++)
-			{
+			for (i = 0; i < width * height; i++) {
 				*ptrBBody++ = (unsigned char) (addG + *grey++);
 			}
 			(*env)->ReleaseByteArrayElements(env, jba, jbBody, 0);
 
-		}
-		else /* prec[9:16] */ //FIXME
+		} else /* prec[9:16] */ //FIXME
 		{
 			int *grey;
 			jshortArray jsa;
@@ -1192,16 +1113,15 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 
 			grey = image->comps[0].data;
 
-			if (image->comps[0].prec < 16)
-			{
+			if (image->comps[0].prec < 16) {
 				force16 = 1;
 				ushift = 16 - image->comps[0].prec;
 				dshift = image->comps[0].prec - ushift;
 			}
 
 			/*
-				Allocate JAVA memory:
-			*/
+			 Allocate JAVA memory:
+			 */
 			mid = (*env)->GetMethodID(env, cls, "alloc16", "()V");
 
 			(*env)->CallVoidMethod(env, obj, mid);
@@ -1211,12 +1131,10 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			jsBody = (*env)->GetShortArrayElements(env, jsa, 0);
 			ptrSBody = jsBody;
 
-			for (i = 0; i < width * height; i++)
-			{
+			for (i = 0; i < width * height; i++) {
 				v = (addG + *grey++);
 
-				if (force16)
-				{
+				if (force16) {
 					v = (v << ushift) + (v >> dshift);
 				}
 
@@ -1224,9 +1142,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			}
 			(*env)->ReleaseShortArrayElements(env, jsa, jsBody, 0);
 		}
-	}
-	else
-	{
+	} else {
 		int *grey;
 
 		fputs(bar, stderr);
@@ -1237,8 +1153,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 				clr_space(image->color_space), image->x0, image->y0, image->x1,
 				image->y1);
 
-		for (i = 0; i < image->numcomps; ++i)
-		{
+		for (i = 0; i < image->numcomps; ++i) {
 			fprintf(stderr, "[%d]dx(%d) dy(%d) w(%d) h(%d) signed(%u)\n", i,
 					image->comps[i].dx, image->comps[i].dy, image->comps[i].w,
 					image->comps[i].h, image->comps[i].sgnd);
@@ -1250,20 +1165,18 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 		addG = (image->comps[0].sgnd ? 1 << (image->comps[0].prec - 1) : 0);
 
 		if (image->comps[0].prec <= 8) //FIXME
-		{
+				{
 			fid = (*env)->GetFieldID(env, cls, "image8", "[B");
 			jba = (*env)->GetObjectField(env, obj, fid);
 			jbBody = (*env)->GetByteArrayElements(env, jba, 0);
 			ptrBBody = jbBody;
 
-			for (i = 0; i < width * height; i++)
-			{
+			for (i = 0; i < width * height; i++) {
 				*ptrBBody++ = (unsigned char) (addG + *grey++);
 			}
 			(*env)->ReleaseByteArrayElements(env, jba, jbBody, 0);
 
-		}
-		else /* prec[9:16] */ //FIXME
+		} else /* prec[9:16] */ //FIXME
 		{
 			int *grey;
 			jshortArray jsa;
@@ -1273,8 +1186,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			grey = image->comps[0].data;
 			addG = (image->comps[0].sgnd ? 1 << (image->comps[0].prec - 1) : 0);
 
-			if (image->comps[0].prec < 16)
-			{
+			if (image->comps[0].prec < 16) {
 				force16 = 1;
 				ushift = 16 - image->comps[0].prec;
 				dshift = image->comps[0].prec - ushift;
@@ -1284,12 +1196,10 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 			jsBody = (*env)->GetShortArrayElements(env, jsa, 0);
 			ptrSBody = jsBody;
 
-			for (i = 0; i < width * height; i++)
-			{
+			for (i = 0; i < width * height; i++) {
 				v = (addG + *grey++);
 
-				if (force16)
-				{
+				if (force16) {
 					v = (v << ushift) + (v >> dshift);
 				}
 
@@ -1309,8 +1219,7 @@ JNIEXPORT jint JNICALL Java_org_openJpeg_OpenJPEGJavaDecoder_internalDecodeJ2Kto
 } /* MAIN Java_OpenJPEGJavaDecoder_internalDecodeJ2KtoImage() */
 
 opj_stream_t* OPJ_CALLCONV opj_stream_create_buffer_stream(
-		opj_buffer_info_t* p_source_buffer, OPJ_BOOL p_is_read_stream)
-{
+		opj_buffer_info_t* p_source_buffer, OPJ_BOOL p_is_read_stream) {
 	opj_stream_t* l_stream;
 
 	if (!p_source_buffer)
@@ -1340,17 +1249,13 @@ opj_stream_t* OPJ_CALLCONV opj_stream_create_buffer_stream(
 }
 
 static OPJ_SIZE_T opj_read_from_buffer(void * p_buffer, OPJ_SIZE_T p_nb_bytes,
-		opj_buffer_info_t* p_source_buffer)
-{
+		opj_buffer_info_t* p_source_buffer) {
 	OPJ_UINT32 l_nb_read;
 
 	if (p_source_buffer->cur + p_nb_bytes
-			< p_source_buffer->buf + p_source_buffer->len)
-	{
+			< p_source_buffer->buf + p_source_buffer->len) {
 		l_nb_read = p_nb_bytes;
-	}
-	else
-	{
+	} else {
 		l_nb_read = (OPJ_UINT32) (p_source_buffer->buf + p_source_buffer->len
 				- p_source_buffer->cur);
 	}
@@ -1361,8 +1266,7 @@ static OPJ_SIZE_T opj_read_from_buffer(void * p_buffer, OPJ_SIZE_T p_nb_bytes,
 }
 
 static OPJ_SIZE_T opj_write_from_buffer(void * p_buffer, OPJ_SIZE_T p_nb_bytes,
-		opj_buffer_info_t* p_source_buffer)
-{
+		opj_buffer_info_t* p_source_buffer) {
 	memcpy(p_source_buffer->cur, p_buffer, p_nb_bytes);
 	p_source_buffer->cur += p_nb_bytes;
 	p_source_buffer->len += p_nb_bytes;
@@ -1371,11 +1275,9 @@ static OPJ_SIZE_T opj_write_from_buffer(void * p_buffer, OPJ_SIZE_T p_nb_bytes,
 }
 
 static OPJ_SIZE_T opj_skip_from_buffer(OPJ_SIZE_T p_nb_bytes,
-		opj_buffer_info_t * p_source_buffer)
-{
+		opj_buffer_info_t * p_source_buffer) {
 	if (p_source_buffer->cur + p_nb_bytes
-			< p_source_buffer->buf + p_source_buffer->len)
-	{
+			< p_source_buffer->buf + p_source_buffer->len) {
 		p_source_buffer->cur += p_nb_bytes;
 		return p_nb_bytes;
 	}
@@ -1385,11 +1287,9 @@ static OPJ_SIZE_T opj_skip_from_buffer(OPJ_SIZE_T p_nb_bytes,
 }
 
 static OPJ_BOOL opj_seek_from_buffer(OPJ_SIZE_T p_nb_bytes,
-		opj_buffer_info_t * p_source_buffer)
-{
+		opj_buffer_info_t * p_source_buffer) {
 	if (p_source_buffer->cur + p_nb_bytes
-			< p_source_buffer->buf + p_source_buffer->len)
-	{
+			< p_source_buffer->buf + p_source_buffer->len) {
 		p_source_buffer->cur += p_nb_bytes;
 		return OPJ_TRUE;
 	}
