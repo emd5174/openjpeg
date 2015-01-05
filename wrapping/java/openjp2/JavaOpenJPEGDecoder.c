@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2002-2007, Communications and Remote Sensing Laboratory, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2007, Professor Benoit Macq
+ * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
+ * Copyright (c) 2002-2014, Professor Benoit Macq
  * Copyright (c) 2001-2003, David Janssens
  * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux and Antonin Descampe
+ * Copyright (c) 2003-2007, Francois-Olivier Devaux
+ * Copyright (c) 2003-2014, Antonin Descampe
  * Copyright (c) 2005, Herve Drolon, FreeImage Team
  * Copyright (c) 2006-2007, Parvatha Elangovan
  * Copyright (c) 2007, Patrick Piscaglia (Telemis)
@@ -42,6 +43,7 @@
 #include "opj_getopt.h"
 #include "color.h"
 #include "convert.h"
+#include "dirent.h"
 #include "org_openJpeg_OpenJPEGJavaDecoder.h"
 
 #ifndef _WIN32
@@ -51,12 +53,11 @@
 
 #include "format_defs.h"
 #include "java_helpers.h"
-
 #define IS_READER 1
 
 #define JP2_RFC3745_MAGIC "\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a"
 #define JP2_MAGIC "\x0d\x0a\x87\x0a"
-/* position 45: "\xff\x52" */
+#define J2K_CODESTREAM_MAGIC "\xff\x4f\xff\x51"
 #define J2K_CODESTREAM_MAGIC "\xff\x4f\xff\x51"
 
 typedef struct callback_variables {
@@ -68,8 +69,15 @@ typedef struct callback_variables {
 	jmethodID error_mid;
 } callback_variables_t;
 
+typedef struct dircnt{
+	/** Buffer for holding images read from Directory*/
+	char *filename_buf;
+	/** Pointer to the buffer*/
+	char **filename;
+}dircnt_t;
+
 static int buffer_format(opj_buffer_info_t* buf_info) {
-	int magic_format;
+ 	int magic_format;
 	if (!buf_info || buf_info->len < 12)
 		return -1;
 	if (memcmp(buf_info->buf, JP2_RFC3745_MAGIC, 12) == 0
@@ -158,14 +166,9 @@ static int infile_format(const char *fname) {
 	return magic_format;
 }/* infile_format() */
 
-typedef struct dircnt {
-	/** Buffer for holding images read from Directory*/
-	char *filename_buf;
-	/** Pointer to the buffer*/
-	char **filename;
-} dircnt_t;
 
-typedef struct img_folder {
+
+typedef struct img_folder{
 	/** The directory path of the folder containing input images*/
 	char *imgdirpath;
 	/** Output format*/
@@ -175,53 +178,51 @@ typedef struct img_folder {
 	/** Enable Cod Format for output*/
 	char set_out_format;
 
-} img_fol_t;
+}img_fol_t;
+
 
 void decode_help_display() {
-	fprintf(stdout, "HELP\n----\n\n");
-	fprintf(stdout,
-			"- the -h option displays this help information on screen\n\n");
+	fprintf(stdout,"HELP\n----\n\n");
+	fprintf(stdout,"- the -h option displays this help information on screen\n\n");
 
-	/* UniPG>> */
-	fprintf(stdout, "List of parameters for the JPEG 2000 "
+/* UniPG>> */
+	fprintf(stdout,"List of parameters for the JPEG 2000 "
 #ifdef USE_JPWL
-			"+ JPWL "
+		"+ JPWL "
 #endif /* USE_JPWL */
-					"decoder:\n");
-	/* <<UniPG */
-	fprintf(stdout, "\n");
-	fprintf(stdout, "\n");
-	fprintf(stdout, "  -i <compressed file>\n");
-	fprintf(stdout, "    REQUIRED \n");
-	fprintf(stdout, "    Currently accepts J2K/JP2/JPT files\n");
-	fprintf(stdout, "  -o <decompressed file>\n");
-	fprintf(stdout, "    For DEBUG purpose\n");
-	fprintf(stdout, "    Accepts PNM PGM PPM PGX BMP PNG TGA TIF RAW types\n");
-	fprintf(stdout, "    If a PGX filename is given, there will be as\n");
-	fprintf(stdout, "    many output files as there are components: an\n");
-	fprintf(stdout,
-			"    indice starting from 0 will then be appended to the\n");
-	fprintf(stdout,
-			"    output filename, just before the \"pgx\" extension.\n");
-	fprintf(stdout, "    If a PGM filename is given and there are more than\n");
-	fprintf(stdout, "    one component, only the first component will be\n");
-	fprintf(stdout, "    written to the file.\n");
-	fprintf(stdout, "  -r <reduce factor>\n");
-	fprintf(stdout,
-			"    Set the number of highest resolution levels to be discarded. The\n");
-	fprintf(stdout,
-			"    image resolution is effectively divided by 2 to the power of the\n");
-	fprintf(stdout,
-			"    number of discarded levels. The reduce factor is limited by the\n");
-	fprintf(stdout,
-			"    smallest total number of decomposition levels among tiles.\n");
-	fprintf(stdout, "  -l <number of quality layers to decode>\n");
-	fprintf(stdout,
-			"    Set the maximum number of quality layers to decode. If there are\n");
-	fprintf(stdout,
-			"    less quality layers than the specified number, all the quality layers\n");
-	fprintf(stdout, "    are decoded.\n");
-	/* UniPG>> */
+		"decoder:\n");
+/* <<UniPG */
+	fprintf(stdout,"\n");
+	fprintf(stdout,"\n");
+	fprintf(stdout,"  -ImgDir \n");
+	fprintf(stdout,"	Image file Directory path \n");
+	fprintf(stdout,"  -OutFor \n");
+	fprintf(stdout,"    REQUIRED only if -ImgDir is used\n");
+	fprintf(stdout,"	  Need to specify only format without filename <BMP>  \n");
+	fprintf(stdout,"    Currently accepts PGM, PPM, PNM, PGX, BMP format\n");
+	fprintf(stdout,"  -i <compressed file>\n");
+	fprintf(stdout,"    REQUIRED only if an Input image directory not specified\n");
+	fprintf(stdout,"    Currently accepts J2K-files, JP2-files and JPT-files. The file type\n");
+	fprintf(stdout,"    is identified based on its suffix.\n");
+	fprintf(stdout,"  -o <decompressed file>\n");
+	fprintf(stdout,"    REQUIRED\n");
+	fprintf(stdout,"    Currently accepts PGM-files, PPM-files, PNM-files, PGX-files and\n");
+	fprintf(stdout,"    BMP-files. Binary data is written to the file (not ascii). If a PGX\n");
+	fprintf(stdout,"    filename is given, there will be as many output files as there are\n");
+	fprintf(stdout,"    components: an indice starting from 0 will then be appended to the\n");
+	fprintf(stdout,"    output filename, just before the \"pgx\" extension. If a PGM filename\n");
+	fprintf(stdout,"    is given and there are more than one component, only the first component\n");
+	fprintf(stdout,"    will be written to the file.\n");
+	fprintf(stdout,"  -r <reduce factor>\n");
+	fprintf(stdout,"    Set the number of highest resolution levels to be discarded. The\n");
+	fprintf(stdout,"    image resolution is effectively divided by 2 to the power of the\n");
+	fprintf(stdout,"    number of discarded levels. The reduce factor is limited by the\n");
+	fprintf(stdout,"    smallest total number of decomposition levels among tiles.\n");
+	fprintf(stdout,"  -l <number of quality layers to decode>\n");
+	fprintf(stdout,"    Set the maximum number of quality layers to decode. If there are\n");
+	fprintf(stdout,"    less quality layers than the specified number, all the quality layers\n");
+	fprintf(stdout,"    are decoded.\n");
+/* UniPG>> */
 #ifdef USE_JPWL
 	fprintf(stdout,"  -W <options>\n");
 	fprintf(stdout,"    Activates the JPWL correction capability, if the codestream complies.\n");
@@ -230,250 +231,276 @@ void decode_help_display() {
 	fprintf(stdout,"       numcomps is the number of expected components in the codestream\n");
 	fprintf(stdout,"       (search of first EPB rely upon this, default is %d)\n", JPWL_EXPECTED_COMPONENTS);
 #endif /* USE_JPWL */
-	/* <<UniPG */
-	fprintf(stdout, "\n");
+/* <<UniPG */
+	fprintf(stdout,"\n");
 }
 
 /* -------------------------------------------------------------------------- */
 
-int outfile_format(char *filename) {
+int get_num_images(char *imgdirpath){
+	DIR *dir;
+	struct dirent* content;
+	int num_images = 0;
+
+	/*Reading the input images from given input directory*/
+
+	dir= opendir(imgdirpath);
+	if(!dir){
+		fprintf(stderr,"Could not open Folder %s\n",imgdirpath);
+		return 0;
+	}
+
+	while((content=readdir(dir))!=NULL){
+		if(strcmp(".",content->d_name)==0 || strcmp("..",content->d_name)==0 )
+			continue;
+		num_images++;
+	}
+	return num_images;
+}
+
+int load_images(dircnt_t *dirptr, char *imgdirpath){
+	DIR *dir;
+	struct dirent* content;
+	int i = 0;
+
+	/*Reading the input images from given input directory*/
+
+	dir= opendir(imgdirpath);
+	if(!dir){
+		fprintf(stderr,"Could not open Folder %s\n",imgdirpath);
+		return 1;
+	}else	{
+		fprintf(stderr,"Folder opened successfully\n");
+	}
+
+	while((content=readdir(dir))!=NULL){
+		if(strcmp(".",content->d_name)==0 || strcmp("..",content->d_name)==0 )
+			continue;
+
+		strcpy(dirptr->filename[i],content->d_name);
+		i++;
+	}
+	return 0;
+}
+
+int get_file_format(char *filename) {
 	unsigned int i;
-	static const char *extension[] = { "pgx", "pnm", "pgm", "ppm", "bmp", "tif",
-			"png", "raw", "tga", "j2k", "jp2", "jpt", "j2c" };
-	static const int format[] = { PGX_DFMT, PXM_DFMT, PXM_DFMT, PXM_DFMT,
-			BMP_DFMT, TIF_DFMT, PNG_DFMT,
-			RAW_DFMT, TGA_DFMT, J2K_CFMT, JP2_CFMT, JPT_CFMT, J2K_CFMT };
+	static const char *extension[] = {"pgx", "pnm", "pgm", "ppm", "bmp","tif", "raw", "tga", "j2k", "jp2", "jpt", "j2c" };
+	static const int format[] = { PGX_DFMT, PXM_DFMT, PXM_DFMT, PXM_DFMT, BMP_DFMT, TIF_DFMT, RAW_DFMT, TGA_DFMT, J2K_CFMT, JP2_CFMT, JPT_CFMT, J2K_CFMT };
 	char * ext = strrchr(filename, '.');
 	if (ext == NULL)
 		return -1;
 	ext++;
-	if (*ext) {
-		for (i = 0; i < sizeof(format) / sizeof(*format); i++) {
-			if (strnicmp(ext, extension[i], 3) == 0)
+	if(ext) {
+		for(i = 0; i < sizeof(format)/sizeof(*format); i++) {
+			if(strnicmp(ext, extension[i], 3) == 0) {
 				return format[i];
+			}
 		}
 	}
+
 	return -1;
 }
 
+
 /* -------------------------------------------------------------------------- */
 
-int parse_cmdline_decoder(int argc, char * const argv[],
-		opj_dparameters_t *parameters, img_fol_t *img_fol) {
+int parse_cmdline_decoder(int argc, char **argv, opj_dparameters_t *parameters,img_fol_t *img_fol) {
 	/* parse the command line */
 	int totlen;
-	opj_option_t long_option[] = { { "ImgDir", REQ_ARG, NULL, 'y' }, { "OutFor",
-			REQ_ARG, NULL, 'O' }, };
+	opj_option_t long_option[]={
+		{"ImgDir",REQ_ARG, NULL ,'y'},
+		{"OutFor",REQ_ARG, NULL ,'O'},
+	};
 
-	/* UniPG>> */
+/* UniPG>> */
 	const char optlist[] = "i:o:r:l:hx:"
 
 #ifdef USE_JPWL
-			"W:"
+					"W:"
 #endif /* USE_JPWL */
-;	/*for(i=0; i<argc; i++) {
-	 printf("[%s]",argv[i]);
-	 }
-	 printf("\n");*/
+					;
+	/*for (i=0; i<argc; i++) {
+		printf("[%s]",argv[i]);
+	}
+	printf("\n");*/
 
-	/* <<UniPG */
-	totlen = sizeof(long_option);
+/* <<UniPG */
+	totlen=sizeof(long_option);
 	img_fol->set_out_format = 0;
 	opj_reset_options_reading();
 
 	while (1) {
-		int c = opj_getopt_long(argc, argv, optlist, long_option, totlen);
+		int c = opj_getopt_long(argc, argv,optlist,long_option,totlen);
 		if (c == -1)
 			break;
 		switch (c) {
-		case 'i': /* input file */
-		{
-			char *infile = opj_optarg;
-			parameters->decod_format = infile_format(infile);
-			switch (parameters->decod_format) {
-			case J2K_CFMT:
-			case JP2_CFMT:
-			case JPT_CFMT:
-				break;
-			default:
-				fprintf(stderr,
-						"!! Unrecognized format for infile : %s [accept only *.j2k, *.jp2, *.jpc or *.jpt] !!\n\n",
-						infile);
-				return 1;
+			case 'i':			/* input file */
+			{
+				char *infile = opj_optarg;
+				parameters->decod_format = get_file_format(infile);
+				switch(parameters->decod_format) {
+					case J2K_CFMT:
+					case JP2_CFMT:
+					case JPT_CFMT:
+						break;
+					default:
+						fprintf(stderr,
+							"!! Unrecognized format for infile : %s [accept only *.j2k, *.jp2, *.jpc or *.jpt] !!\n\n",
+							infile);
+						return 1;
+				}
+				strncpy(parameters->infile, infile, sizeof(parameters->infile)-1);
 			}
-			strncpy(parameters->infile, infile, sizeof(parameters->infile) - 1);
-		}
 			break;
 
-			/* ----------------------------------------------------- */
+				/* ----------------------------------------------------- */
 
-		case 'o': /* output file */
-		{
-			char *outfile = opj_optarg;
-			parameters->cod_format = outfile_format(outfile);
-			switch (parameters->cod_format) {
-			case PGX_DFMT:
-			case PXM_DFMT:
-			case BMP_DFMT:
-			case TIF_DFMT:
-			case RAW_DFMT:
-			case TGA_DFMT:
-			case PNG_DFMT:
-				break;
-			default:
-				fprintf(stderr,
-						"Unknown output format image %s [only *.pnm, *.pgm, *.ppm, *.pgx, *.bmp, *.tif, *.png, *.raw or *.tga]!! \n",
-						outfile);
-				return 1;
+			case 'o':			/* output file */
+			{
+				char *outfile = opj_optarg;
+				parameters->cod_format = get_file_format(outfile);
+				switch(parameters->cod_format) {
+					case PGX_DFMT:
+					case PXM_DFMT:
+					case BMP_DFMT:
+					case TIF_DFMT:
+					case RAW_DFMT:
+					case TGA_DFMT:
+						break;
+					default:
+						fprintf(stderr, "Unknown output format image %s [only *.pnm, *.pgm, *.ppm, *.pgx, *.bmp, *.tif, *.raw or *.tga]!! \n", outfile);
+						return 1;
+				}
+				strncpy(parameters->outfile, outfile, sizeof(parameters->outfile)-1);
 			}
-			strncpy(parameters->outfile, outfile,
-					sizeof(parameters->outfile) - 1);
-		}
 			break;
 
-			/* ----------------------------------------------------- */
+				/* ----------------------------------------------------- */
 
-		case 'O': /* output format */
-		{
-			char outformat[50];
-			char *of = opj_optarg;
-			sprintf(outformat, ".%s", of);
-			img_fol->set_out_format = 1;
-			parameters->cod_format = outfile_format(outformat);
-			switch (parameters->cod_format) {
-			case PGX_DFMT:
-				img_fol->out_format = "pgx";
-				break;
-			case PXM_DFMT:
-				img_fol->out_format = "ppm";
-				break;
-			case BMP_DFMT:
-				img_fol->out_format = "bmp";
-				break;
-			case TIF_DFMT:
-				img_fol->out_format = "tif";
-				break;
-			case RAW_DFMT:
-				img_fol->out_format = "raw";
-				break;
-			case TGA_DFMT:
-				img_fol->out_format = "tga";
-				break;
-			case PNG_DFMT:
-				img_fol->out_format = "png";
-				break;
-			default:
-				fprintf(stderr,
-						"Unknown output format image %s [only *.pnm, *.pgm, *.ppm, *.pgx, *.bmp, *.tif, *.png, *.raw or *.tga]!! \n",
-						outformat);
-				return 1;
-				break;
+			case 'O':			/* output format */
+			{
+				char outformat[50];
+				char *of = opj_optarg;
+				sprintf(outformat,".%s",of);
+				img_fol->set_out_format = 1;
+				parameters->cod_format = get_file_format(outformat);
+				switch(parameters->cod_format) {
+					case PGX_DFMT:
+						img_fol->out_format = "pgx";
+						break;
+					case PXM_DFMT:
+						img_fol->out_format = "ppm";
+						break;
+					case BMP_DFMT:
+						img_fol->out_format = "bmp";
+						break;
+					case TIF_DFMT:
+						img_fol->out_format = "tif";
+						break;
+					case RAW_DFMT:
+						img_fol->out_format = "raw";
+						break;
+					case TGA_DFMT:
+						img_fol->out_format = "raw";
+						break;
+					default:
+						fprintf(stderr, "Unknown output format image %s [only *.pnm, *.pgm, *.ppm, *.pgx, *.bmp, *.tif, *.raw or *.tga]!! \n", outformat);
+						return 1;
+						break;
+				}
 			}
-		}
 			break;
 
-			/* ----------------------------------------------------- */
+				/* ----------------------------------------------------- */
 
-		case 'r': /* reduce option */
-		{
-			sscanf(opj_optarg, "%d", &parameters->cp_reduce);
-		}
+
+			case 'r':		/* reduce option */
+			{
+				sscanf(opj_optarg, "%d", &parameters->cp_reduce);
+			}
 			break;
 
-			/* ----------------------------------------------------- */
+				/* ----------------------------------------------------- */
 
-		case 'l': /* layering option */
-		{
-			sscanf(opj_optarg, "%d", &parameters->cp_layer);
-		}
+
+			case 'l':		/* layering option */
+			{
+				sscanf(opj_optarg, "%d", &parameters->cp_layer);
+			}
 			break;
 
-			/* ----------------------------------------------------- */
+				/* ----------------------------------------------------- */
 
-		case 'h': /* display an help description */
-			decode_help_display();
-			return 1;
+			case 'h': 			/* display an help description */
+				decode_help_display();
+				return 1;
 
-			/* ------------------------------------------------------ */
+				/* ------------------------------------------------------ */
 
-		case 'y': /* Image Directory path */
-		{
-			img_fol->imgdirpath = (char*) opj_malloc(strlen(opj_optarg) + 1);
-			strcpy(img_fol->imgdirpath, opj_optarg);
-			img_fol->set_imgdir = 1;
-		}
-			break;
-			/* ----------------------------------------------------- */
-			/* UniPG>> */
+			case 'y':			/* Image Directory path */
+				{
+					img_fol->imgdirpath = (char*)opj_malloc(strlen(opj_optarg) + 1);
+					strcpy(img_fol->imgdirpath,opj_optarg);
+					img_fol->set_imgdir=1;
+				}
+				break;
+				/* ----------------------------------------------------- */
+/* UniPG>> */
 #ifdef USE_JPWL
 
-			case 'W': /* activate JPWL correction */
+			case 'W': 			/* activate JPWL correction */
 			{
 				char *token = NULL;
 
 				token = strtok(opj_optarg, ",");
-				while(token != NULL)
-				{
+				while(token != NULL) {
 
 					/* search expected number of components */
-					if(*token == 'c')
-					{
+					if (*token == 'c') {
 
 						static int compno;
 
 						compno = JPWL_EXPECTED_COMPONENTS; /* predefined no. of components */
 
-						if(sscanf(token, "c=%d", &compno) == 1)
-						{
+						if(sscanf(token, "c=%d", &compno) == 1) {
 							/* Specified */
-							if((compno < 1) || (compno > 256))
-							{
+							if ((compno < 1) || (compno > 256)) {
 								fprintf(stderr, "ERROR -> invalid number of components c = %d\n", compno);
 								return 1;
 							}
 							parameters->jpwl_exp_comps = compno;
 
-						}
-						else if(!strcmp(token, "c"))
-						{
+						} else if (!strcmp(token, "c")) {
 							/* default */
 							parameters->jpwl_exp_comps = compno; /* auto for default size */
 
-						}
-						else
-						{
+						} else {
 							fprintf(stderr, "ERROR -> invalid components specified = %s\n", token);
 							return 1;
 						};
 					}
 
 					/* search maximum number of tiles */
-					if(*token == 't')
-					{
+					if (*token == 't') {
 
 						static int tileno;
 
 						tileno = JPWL_MAXIMUM_TILES; /* maximum no. of tiles */
 
-						if(sscanf(token, "t=%d", &tileno) == 1)
-						{
+						if(sscanf(token, "t=%d", &tileno) == 1) {
 							/* Specified */
-							if((tileno < 1) || (tileno > JPWL_MAXIMUM_TILES))
-							{
+							if ((tileno < 1) || (tileno > JPWL_MAXIMUM_TILES)) {
 								fprintf(stderr, "ERROR -> invalid number of tiles t = %d\n", tileno);
 								return 1;
 							}
 							parameters->jpwl_max_tiles = tileno;
 
-						}
-						else if(!strcmp(token, "t"))
-						{
+						} else if (!strcmp(token, "t")) {
 							/* default */
 							parameters->jpwl_max_tiles = tileno; /* auto for default size */
 
-						}
-						else
-						{
+						} else {
 							fprintf(stderr, "ERROR -> invalid tiles specified = %s\n", token);
 							return 1;
 						};
@@ -488,29 +515,26 @@ int parse_cmdline_decoder(int argc, char * const argv[],
 			}
 			break;
 #endif /* USE_JPWL */
-			/* <<UniPG */
+/* <<UniPG */
 
-			/* ----------------------------------------------------- */
+				/* ----------------------------------------------------- */
 
-		default:
-			fprintf(stderr, "WARNING -> this option is not valid \"-%c %s\"\n",
-					c, opj_optarg);
-			break;
+			default:
+				fprintf(stderr,"WARNING -> this option is not valid \"-%c %s\"\n",c, opj_optarg);
+				break;
 		}
 	}
 
-	/* No check for possible errors before the -i and -o options
-	 * are of course not mandatory
-	 */
-	return 0;
+	/* No check for possible errors before the -i and -o options are of course not mandatory*/
 
-}/* parse_cmdline_decoder() */
+	return 0;
+}
 
 /* -------------------------------------------------------------------------- */
 
 /**
- error callback returning the message to Java andexpecting a callback_variables_t client object
- */
+error callback returning the message to Java andexpecting a callback_variables_t client object
+*/
 void error_callback(const char *msg, void *client_data) {
 	callback_variables_t* vars = (callback_variables_t*) client_data;
 	JNIEnv *env = vars->env;
@@ -521,15 +545,15 @@ void error_callback(const char *msg, void *client_data) {
 	(*env)->CallVoidMethod(env, *(vars->jobj), vars->error_mid, jbuffer);
 
 	if ((*env)->ExceptionOccurred(env)) {
-		fprintf(stderr, "C: Exception during call back method\n");
+		fprintf(stderr,"C: Exception during call back method\n");
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 	}
 	(*env)->DeleteLocalRef(env, jbuffer);
 }
 /**
- warning callback returning the message to Java andexpecting a callback_variables_t client object
- */
+warning callback returning the message to Java andexpecting a callback_variables_t client object
+*/
 void warning_callback(const char *msg, void *client_data) {
 	callback_variables_t* vars = (callback_variables_t*) client_data;
 	JNIEnv *env = vars->env;
@@ -540,15 +564,15 @@ void warning_callback(const char *msg, void *client_data) {
 	(*env)->CallVoidMethod(env, *(vars->jobj), vars->message_mid, jbuffer);
 
 	if ((*env)->ExceptionOccurred(env)) {
-		fprintf(stderr, "C: Exception during call back method\n");
+		fprintf(stderr,"C: Exception during call back method\n");
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 	}
 	(*env)->DeleteLocalRef(env, jbuffer);
 }
 /**
- information callback returning the message to Java andexpecting a callback_variables_t client object
- */
+information callback returning the message to Java andexpecting a callback_variables_t client object
+*/
 void info_callback(const char *msg, void *client_data) {
 	callback_variables_t* vars = (callback_variables_t*) client_data;
 	JNIEnv *env = vars->env;
@@ -559,14 +583,15 @@ void info_callback(const char *msg, void *client_data) {
 	(*env)->CallVoidMethod(env, *(vars->jobj), vars->message_mid, jbuffer);
 
 	if ((*env)->ExceptionOccurred(env)) {
-		fprintf(stderr, "C: Exception during call back method\n");
+		fprintf(stderr,"C: Exception during call back method\n");
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 	}
 	(*env)->DeleteLocalRef(env, jbuffer);
 }
 
-static const char *clr_space(OPJ_COLOR_SPACE i) {
+static const char *clr_space(OPJ_COLOR_SPACE i)
+{
 	if (i == OPJ_CLRSPC_SRGB)
 		return "OPJ_CLRSPC_SRGB";
 	if (i == OPJ_CLRSPC_GRAY)
